@@ -45,20 +45,25 @@ for frame = 1:num_frames
     sdp_pose, status, data, model = center_l2(q_front, q_backproj, q_eqs; analytic=analytic, lowerb=lowerb, upperb=upperb, silent=silent)
 
     # local refinement + gap
-    est_pose, loc_status, gap = local_refine(q_front, q_backproj, q_eqs, data; analytic=analytic, lowerb=lowerb, upperb=upperb, silent=silent)
+    tight = data[1]
+    vars_proj = data[3]
+    if tight
+        gap = 0.
+        est_pose = sdp_pose
+    else
+        est_pose, loc_status, vars_proj, gap = local_refine(q_front, q_backproj, q_eqs, data; analytic=analytic, lowerb=lowerb, upperb=upperb, silent=silent)
+    end
 
     # check feasibility
-    feas = 
+    feas = check_feas(q_front, q_backproj, q_eqs, vars_proj; tol=1e-3, silent=silent)
 
+    # save
     all_status[frame] = status
     all_feas[frame] = feas
     all_gaps[frame] = gap
 
-    # save estimated pose
-    R_est = est_pose[1]
-    t_est = est_pose[2]
-    t_ests[frame] = t_est
-    R_ests[frame] = R_est
+    R_ests[frame] = est_pose[1]
+    t_ests[frame] = est_pose[2]
     
     println("$frame: $status")
 end

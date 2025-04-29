@@ -3,7 +3,7 @@
 
 using Printf
 using LinearAlgebra
-using JuMP, Clarabel
+using JuMP, Clarabel, Ipopt
 
 # TODO: move to submodule
 include("utils.jl")
@@ -86,8 +86,108 @@ function center_l2(q_front, q_backproj, q_eqs; analytic=false, lowerb=-1, upperb
         printstyled("X not rank 1: λ₁ = $(evs[end]), λ₂ = $(evs[end-1])\n", color=:red)
     end
 
-    x_proj = [margin_val; vec(R_est); t_est; 1]
-    data = (tight, opt, x_proj)
+    vars_proj = [margin_val; vec(R_est); t_est]
+    data = (tight, opt, vars_proj)
 
     return ((R_est, t_est), termination_status(model), data, model)
+end
+
+
+function local_refine(q_front, q_backproj, q_eqs, data; analytic=analytic, lowerb=lowerb, upperb=upperb, silent=silent)
+    model = Model(Ipopt.Optimizer)
+
+    (_, opt, vars_start) = data
+    margin = vars_start[1:end-3-9]
+    R_est = reshape(vars_start[end-3-9+1:end-3],3,3)
+    t_est = vars_start[end-2:end]
+
+    N = size(margin,1)
+    set_silent(model)
+
+    @variable(model, margin_local[i=1:N], start=margin[i])
+    @variable(model, R[i=1:3,j=1:3], start=R_est[i,j])
+    @variable(model, t[i=1:3], start=t_est[i])
+
+    # objective
+    if analytic
+        @variable(model, log_margin[1:N])
+        obj = sum(log_margin)
+        for i = 1:N
+            @constraint(model, [log_margin[i], 1, margin[i]] ∈ MOI.ExponentialCone())
+        end
+    else
+        obj = sum(margin_local)
+    end
+    @objective(model, Max, obj)
+
+    # constraints
+    x_local = [vec(R); t; 1]
+    X_local = x_local*x_local'
+    for (i,q) in enumerate(q_front)
+        Q = Symmetric([q.H  q.c;  q.c'  q.d])
+        @constraint(model, tr(Q*X_local) <= 0.)
+    end
+    for (i,q) in enumerate(q_backproj)
+        Q = Symmetric([q.H  q.c;  q.c'  q.d])
+        @constraint(model, tr(Q*X_local) <= -margin_local[i])
+    end
+    for (i,q) in enumerate(q_eqs)
+        Q = Symmetric([q.H  q.c;  q.c'  q.d])
+        @constraint(model,  tr(Q*X_local) == 0.)
+    end
+
+    @constraint(model, margin_local .>= -1.)
+    @constraint(model, margin_local .<= 10*r)
+
+    optimize!(model)
+    vars_proj = [value.(margin_local); vec(value.(R)); value.(t)]
+
+    # compute gap
+    ub = value(obj)
+    gap = abs(opt-ub)/max(1, abs(ub))
+
+    return (value.(R), value.(t)), termination_status(model), vars_proj, gap
+end
+
+
+function check_feas(q_front, q_backproj, q_eqs, vars_proj; tol=1e-3, silent=true)
+    margin = vars_proj[1:end-3-9]
+
+    feasible = true
+    x_test = [vars_proj[end-3-9+1:end]; 1]
+    X_test = x_test*x_test'
+    for (i,q) in enumerate(q_front)
+        Q = Symmetric([q.H  q.c;  q.c'  q.d])
+        if !(tr(Q*X_test) <= tol)
+            if !silent
+                printstyled("FoC Ineq. $i fails: ",color=:red)
+                print(tr(Q*X_test))
+                println(" > 0")
+            end
+            feasible = false
+        end
+    end
+    for (i,q) in enumerate(q_backproj)
+        Q = Symmetric([q.H  q.c;  q.c'  q.d])
+        if !(tr(Q*X_test) <= -margin[i] + tol)
+            if !silent
+                printstyled("BP Ineq. $i fails: ",color=:red)
+                print(tr(Q*X_test) - -margin[i])
+                println(" > 0")
+            end
+            feasible = false
+        end
+    end
+    for (i,q) in enumerate(q_eqs)
+        Q = [q.H  q.c;  q.c'  q.d]
+        if !(abs(tr(Q*X_test)) <= tol)
+            if !silent
+                printstyled("Eq. $i fails: ",color=:red)
+                print(tr(Q*X_test))
+                println(" != 0")
+            end
+            feasible = false
+        end
+    end
+    return feasible
 end
