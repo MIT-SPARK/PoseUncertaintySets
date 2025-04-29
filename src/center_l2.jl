@@ -38,8 +38,11 @@ function center_l2(q_front, q_backproj, q_eqs; analytic=false, lowerb=-1, upperb
 
     # objective
     if analytic
-        # TODO
-        obj = sum(log.(margin))
+        @variable(model, log_margin[1:N])
+        obj = sum(log_margin)
+        for i = 1:N
+            @constraint(model, [log_margin[i], 1, margin[i]] ∈ MOI.ExponentialCone())
+        end
     else
         obj = sum(margin)
     end
