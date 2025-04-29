@@ -65,7 +65,7 @@ function center_l2(q_front, q_backproj, q_eqs; analytic=false, lowerb=-1, upperb
         lowerb = max(lowerb, 0.)
     end
     @constraint(model, margin .>= lowerb)
-    @constraint(model, margin <= upperb*r)
+    @constraint(model, margin .<= upperb)
 
     # solve
     optimize!(model)
@@ -83,7 +83,9 @@ function center_l2(q_front, q_backproj, q_eqs; analytic=false, lowerb=-1, upperb
     tight = rank(X_val, 1e-4) == 1
     if !tight
         evs = eigvals(X_val)
-        printstyled("X not rank 1: λ₁ = $(evs[end]), λ₂ = $(evs[end-1])\n", color=:red)
+        if !silent
+            printstyled("X not rank 1: λ₁ = $(evs[end]), λ₂ = $(evs[end-1])\n", color=:red)
+        end
     end
 
     vars_proj = [margin_val; vec(R_est); t_est]
@@ -136,8 +138,8 @@ function local_refine(q_front, q_backproj, q_eqs, data; analytic=analytic, lower
         @constraint(model,  tr(Q*X_local) == 0.)
     end
 
-    @constraint(model, margin_local .>= -1.)
-    @constraint(model, margin_local .<= 10*r)
+    @constraint(model, margin_local .>= lowerb)
+    @constraint(model, margin_local .<= upperb)
 
     optimize!(model)
     vars_proj = [value.(margin_local); vec(value.(R)); value.(t)]
