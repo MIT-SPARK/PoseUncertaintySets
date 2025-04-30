@@ -11,9 +11,9 @@ include("utils.jl")
 """
     bounding_ellipse(center, y, r, b, K[; solver=Clarabel, silent=false])
 
-S-Lemma to outer bound pose uncertainty set
+S-Lemma to outer bound pose uncertainty set. `(x-center)'*H*(x-center) ≤ 1`
 
-Returns ellipse matrix, optimization status
+Returns ellipse matrix `H`, optimization status.
 
 # Arguments
 - `center`: center of ellipse [vec(R), t]

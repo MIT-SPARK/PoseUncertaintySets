@@ -1,4 +1,5 @@
 ## Sample from pose uncertainty set using max margin
+# Run central pose first!
 # Lorenzo Shaikewitz
 
 using Serialization
@@ -38,7 +39,7 @@ q_eqs = SO3_constraints()
 
 # grid size
 grid_size = 0.005 # [m]
-max_offset = 0.05 # [m]
+max_offset = 0.1 # [m]
 pts_per_axis = Int(round(max_offset/grid_size))
 
 # find center
@@ -88,9 +89,10 @@ for (i,center) in enumerate(test_centers)
             tlower=center .- grid_size, tupper=center .+ grid_size)
     end
 
-    feas = check_feas(q_front, q_backproj, q_eqs, vars_proj; tol=1e-3, silent=silent)
+    tol = 1e-3
+    feas = check_feas(q_front, q_backproj, q_eqs, vars_proj; tol=tol, silent=silent)
     t = vars_proj[end-2:end]
-    feas = feas && sum(t+1e-3.>= center .- grid_size)==3 && sum(t-1e-3 .<= center .+ grid_size)==3
+    feas = feas && sum(t.+tol.>= center .- grid_size)==3 && sum(t.-tol .<= center .+ grid_size)==3
         
     if feas
         if analytic
