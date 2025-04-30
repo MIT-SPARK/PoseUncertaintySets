@@ -25,7 +25,7 @@ Returns pose estimate, optimization status, solution data, JuMP model
 - `upperb=10`: controls constraint `margin < upperb*r`
 - `silent=false`: should we print things?
 """
-function center_l2(q_front, q_backproj, q_eqs; analytic=false, lowerb=-1, upperb=10, silent=false)
+function center_l2(q_front, q_backproj, q_eqs; analytic=false, lowerb=-1, upperb=10, silent=false, tlower=nothing, tupper=nothing)
     N = length(q_front)
 
     model = Model(Clarabel.Optimizer)
@@ -66,6 +66,12 @@ function center_l2(q_front, q_backproj, q_eqs; analytic=false, lowerb=-1, upperb
     end
     @constraint(model, margin .>= lowerb)
     @constraint(model, margin .<= upperb)
+    if !isnothing(tlower)
+        @constraint(model, X[10:12,13] >= tlower)
+    end
+    if !isnothing(tupper)
+        @constraint(model, X[10:12,13] <= tupper)
+    end
 
     # solve
     optimize!(model)
@@ -95,7 +101,7 @@ function center_l2(q_front, q_backproj, q_eqs; analytic=false, lowerb=-1, upperb
 end
 
 
-function local_refine(q_front, q_backproj, q_eqs, data; analytic=analytic, lowerb=lowerb, upperb=upperb, silent=silent)
+function local_refine(q_front, q_backproj, q_eqs, data; analytic=analytic, lowerb=lowerb, upperb=upperb, silent=silent, tlower=nothing, tupper=nothing)
     model = Model(Ipopt.Optimizer)
 
     (_, opt, vars_start) = data
@@ -140,6 +146,13 @@ function local_refine(q_front, q_backproj, q_eqs, data; analytic=analytic, lower
 
     @constraint(model, margin_local .>= lowerb)
     @constraint(model, margin_local .<= upperb)
+
+    if !isnothing(tlower)
+        @constraint(model, X_local[10:12,13] >= tlower)
+    end
+    if !isnothing(tupper)
+        @constraint(model, X_local[10:12,13] <= tupper)
+    end
 
     optimize!(model)
     vars_proj = [value.(margin_local); vec(value.(R)); value.(t)]

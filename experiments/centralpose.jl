@@ -1,4 +1,4 @@
-## Compute the central pose
+## Compute the central pose (l2)
 # Lorenzo Shaikewitz, 4/29/2025
 
 using Serialization
