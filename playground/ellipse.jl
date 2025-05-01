@@ -64,6 +64,10 @@ H, status = bounding_ellipse(center, q_front, q_backproj, q_eqs; solver=Mosek.Op
 println("Solved with status: $status")
 
 
-## Project ellipse to SO(3)
+## Project ellipse to translations
 P = [zeros(3,9) diagm(ones(3))]
 H_t = inv(P*inv(H)*P')
+
+# project to SO(3)?
+P = [diagm(ones(9)) zeros(9,3)]
+H_r = inv(P*inv(H)*P')

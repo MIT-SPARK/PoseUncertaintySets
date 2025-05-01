@@ -38,7 +38,7 @@ q_front, q_backproj = uncertaintyset_l2(y, r, b, camK)
 q_eqs = SO3_constraints()
 
 # grid size
-grid_size = 0.005 # [m]
+grid_size = 0.01 # [m]
 max_offset = 0.1 # [m]
 pts_per_axis = Int(round(max_offset/grid_size))
 

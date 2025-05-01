@@ -63,6 +63,7 @@ num_feas = sum(all_feas.==1)
 
 all_H_ts = Vector{Any}(undef, num_frames)
 trans_principal_axes = -ones(3, num_frames)
+trans_principal_axes_fake = -ones(3,num_frames)
 for frame = 1:num_frames
     if all_feas[frame] != 1
         continue
@@ -73,8 +74,20 @@ for frame = 1:num_frames
     H_t = inv(P*inv(all_H[frame])*P')
     all_H_ts[frame] = H_t
     trans_principal_axes[:,frame] = 1 ./ eigvals(H_t) # [m]
+
+    # just take constant rotation
+    P = [zeros(3,9) diagm(ones(3))]
+    trans_principal_axes_fake[:,frame] = 1 ./ eigvals(all_H[frame][10:12,10:12]) # [m]
 end
 
 # Plot
 
-Plots.plot(sort(trans_principal_axes[2,all_feas.==1]).*1000, (1:num_feas)./num_feas, xscale=:log10)
+Plots.plot(sort(trans_principal_axes_fake[1,all_feas.==1]), (1:num_feas)./num_feas, label="1")
+Plots.plot!(sort(trans_principal_axes_fake[2,all_feas.==1]), (1:num_feas)./num_feas, label="2")
+Plots.plot!(sort(trans_principal_axes_fake[3,all_feas.==1]), (1:num_feas)./num_feas, label="3")
+p1=Plots.plot!(xscale=:log10, ylabel="CDF", xlabel="Error Bound (m)")
+
+Plots.plot(sort(trans_principal_axes[1,all_feas.==1]), (1:num_feas)./num_feas, label="1")
+Plots.plot!(sort(trans_principal_axes[2,all_feas.==1]), (1:num_feas)./num_feas, label="2")
+Plots.plot!(sort(trans_principal_axes[3,all_feas.==1]), (1:num_feas)./num_feas, label="3")
+p2=Plots.plot!(xscale=:log10, xticks=[1e-5, 1e-1,1,10,100,1000], ylabel="CDF", xlabel="Error Bound (m)")
