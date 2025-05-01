@@ -27,6 +27,7 @@ num_frames = length(img_names)
 all_status = Vector{MOI.TerminationStatusCode}(undef, num_frames)
 all_feas = -ones(Int, num_frames)
 all_gaps = -ones(num_frames)
+all_times = -ones(num_frames)
 t_ests = Vector{Any}(undef, num_frames)
 R_ests = Vector{Any}(undef, num_frames)
 for frame = 1:num_frames
@@ -43,7 +44,9 @@ for frame = 1:num_frames
     q_eqs = SO3_constraints()
 
     # find center
-    sdp_pose, status, data, model = center_l2(q_front, q_backproj, q_eqs; analytic=analytic, lowerb=lowerb, upperb=upperb*r, silent=silent)
+    out = @timed center_l2(q_front, q_backproj, q_eqs; analytic=analytic, lowerb=lowerb, upperb=upperb*r, silent=silent)
+    sdp_pose, status, data, model = out.value
+    time = out.time - out.compile_time
 
     # local refinement + gap
     tight = data[1]
@@ -52,7 +55,9 @@ for frame = 1:num_frames
         gap = 0.
         est_pose = sdp_pose
     else
-        est_pose, loc_status, vars_proj, gap = local_refine(q_front, q_backproj, q_eqs, data; analytic=analytic, lowerb=lowerb, upperb=upperb*r, silent=silent)
+        out = @timed local_refine(q_front, q_backproj, q_eqs, data; analytic=analytic, lowerb=lowerb, upperb=upperb*r, silent=silent)
+        est_pose, loc_status, vars_proj, gap = out.value
+        time += out.time - out.compile_time
     end
 
     # check feasibility
@@ -62,6 +67,7 @@ for frame = 1:num_frames
     all_status[frame] = status
     all_feas[frame] = feas
     all_gaps[frame] = gap
+    all_times[frame] = time
 
     R_ests[frame] = est_pose[1]
     t_ests[frame] = est_pose[2]
