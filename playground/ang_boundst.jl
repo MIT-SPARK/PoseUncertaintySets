@@ -1,4 +1,4 @@
-## Get angular bounds?
+## Get angular bounds--version without marginalized t
 
 using TSSOS, DynamicPolynomials
 
@@ -6,23 +6,30 @@ include("../src/refine.jl")
 
 @polyvar s
 @polyvar c
-vars = [s; c]
+@polyvar t[1:3]
+vars = [s; c; t]
 
 Rx = [1 0 0; 0 c -s; 0 s c]
 Ry = [c 0 s; 0 1 0; -s 0 c]
 Rz = [c s 0; -s c 0; 0 0 1]
 
-Rc = reshape(center[1:9],3,3)
 R = Rz*Rc
 
+Rc = reshape(center[1:9],3,3)
 obj = c
 
 # constraints
 ineq = zeros(Polynomial{true, Float64}, 0) # expr ≥ 0
-# push!(ineq, 1 - (R[:,1] - Rc[:,1])'*H_r1*(R[:,1] - Rc[:,1]))
-# push!(ineq, 1 - (R[:,2] - Rc[:,2])'*H_r2*(R[:,2] - Rc[:,2]))
-# push!(ineq, 1 - (R[:,3] - Rc[:,3])'*H_r3*(R[:,3] - Rc[:,3]))
-push!(ineq, 1 - (vec(R) - vec(Rc))'*H_r*(vec(R) - vec(Rc)))
+push!(ineq, 1 - ([vec(R); t] - center)'*H*([vec(R); t]- center))
+
+r = all_data["radii"][frame][object_id]
+y = all_data["pixel_measurements"][frame][object_id]
+b = all_data["canonical_kpts"][frame][object_id]
+for pt_idx = 1:size(b,2)
+    proj3dto2d = camK*(R*b[:,pt_idx] + t)
+    # front of camera: proj3dto2d[3] >= 0
+    push!(ineq, proj3dto2d[3])
+end
 
 # push!(ineq, -s)
 push!(ineq, c)
@@ -42,5 +49,4 @@ sol, refine_status = local_refine_tssos(opt, data; QUIET=true, startpoint=sdp_so
 
 println(opt)
 R_est = reshape([r(vars=>sol) for r in vec(R)],3,3)
-@printf "Rot. error: %.2f deg\n" roterror(R_est, Rc)
-@printf "Axi. error: %.2f deg\n" atan(sol[1], sol[2])*180/π
+roterror(R_est, Rc)

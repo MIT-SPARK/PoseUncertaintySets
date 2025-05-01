@@ -11,7 +11,7 @@ include("../src/center_l2.jl")
 object_id = 9
 
 analytic = false
-lowerb = -1
+lowerb = -1 # decrease to get more feasible frames at cost of runtime
 upperb = 10
 silent = true
 

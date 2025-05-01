@@ -81,6 +81,7 @@ for frame = 1:num_frames
 end
 
 # Plot
+import Plots
 
 Plots.plot(sort(trans_principal_axes_fake[1,all_feas.==1]), (1:num_feas)./num_feas, label="1")
 Plots.plot!(sort(trans_principal_axes_fake[2,all_feas.==1]), (1:num_feas)./num_feas, label="2")
