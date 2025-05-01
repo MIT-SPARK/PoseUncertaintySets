@@ -55,3 +55,13 @@ for frame = 1:num_frames
 end
 
 angular_bounds = mean.(eachrow(all_R_bounds[:,all_feas.==1]))
+
+if sum(sum.(eachrow(all_status_rot[:,all_feas .== 1] .== OPTIMAL))) != 3*sum(all_feas .== 1)
+    @warn "Not all solutions optimal--some bounds may not be accurate!"
+end
+
+# CDF Plots
+Plots.plot(sort(all_R_bounds[1,all_feas.==1])  .+ 1e-6, (1:num_feas)./num_feas, label="x")
+Plots.plot!(sort(all_R_bounds[2,all_feas.==1]) .+ 1e-6, (1:num_feas)./num_feas, label="y")
+Plots.plot!(sort(all_R_bounds[3,all_feas.==1]) .+ 1e-6, (1:num_feas)./num_feas, label="z")
+p2=Plots.plot!(xscale=:log10, ylabel="CDF", xlabel="Error Bound (m)")
