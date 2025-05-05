@@ -61,10 +61,12 @@ function center_l2(q_front, q_backproj, q_eqs; analytic=false, lowerb=-1, upperb
         Q = Symmetric([q.H  q.c;  q.c'  q.d])
         @constraint(model,  tr(Q*X) == 0.)
     end
-    if analytic
-        lowerb = max(lowerb, 0.)
+    if !isnothing(lowerb)
+        if analytic
+            lowerb = max(lowerb, 0.)
+        end
+        @constraint(model, margin .>= lowerb)
     end
-    @constraint(model, margin .>= lowerb)
     @constraint(model, margin .<= upperb)
     if !isnothing(tlower)
         @constraint(model, X[10:12,13] >= tlower)
@@ -144,7 +146,9 @@ function local_refine(q_front, q_backproj, q_eqs, data; analytic=analytic, lower
         @constraint(model,  tr(Q*X_local) == 0.)
     end
 
-    @constraint(model, margin_local .>= lowerb)
+    if !isnothing(lowerb)
+        @constraint(model, margin_local .>= lowerb)
+    end
     @constraint(model, margin_local .<= upperb)
 
     if !isnothing(tlower)

@@ -11,13 +11,13 @@ include("../src/center_l2.jl")
 object_id = 9
 
 analytic = false
-lowerb = -1 # decrease to get more feasible frames at cost of runtime
+lowerb = nothing #-10 # decrease to get more feasible frames at cost of runtime
 upperb = 10
 silent = true
 
 # Load data
 cadpath = "./data/lmo/models_eval/"
-datapath = "./data/lmo/l2.dat"
+datapath = "./data/lmo/l2_01_real.dat"
 all_data = deserialize(datapath)
 camK = all_data["camK"]
 img_names = all_data["img"]
@@ -35,7 +35,7 @@ for frame = 1:num_frames
         continue
     end
 
-    r = all_data["radii"][frame][object_id]
+    r = all_data["radii"][frame][object_id] .+ 1e-3 # make sure 0 radii doesn't happen
     y = all_data["pixel_measurements"][frame][object_id]
     b = all_data["canonical_kpts"][frame][object_id]
 
@@ -86,7 +86,7 @@ t_errors = -ones(num_frames)
 R_errors = -ones(num_frames)
 proj_errors = -ones(num_frames)
 for frame = 1:num_frames
-    if all_feas[frame] == 1
+    if all_feas[frame] != -1
         gt = all_data["gt_poses"][frame][object_id]
         R_gt = project2SO3(gt[1])
         t_gt = gt[2] / 1000. # [m]
@@ -119,8 +119,8 @@ using Statistics
 
 visible_in_frames = sum(.!(all_feas .≈ -1.0))
 @printf "Feasible for %d/%d frames (%.2f%%)\n" sum(all_feas .== 1) visible_in_frames sum(all_feas .== 1)/visible_in_frames*100
-@printf "Reasonable for %d/%d frames (%.2f%%)\n" sum(t_errors[all_feas .== 1] .< 1e3) visible_in_frames sum(t_errors[all_feas .== 1] .< 1e3)/visible_in_frames*100
-@printf "Tight for %d/%d frames (%.2f%%)\n" sum(all_gaps[all_feas .== 1] .< 1e-3) visible_in_frames sum(all_gaps[all_feas .== 1] .< 1e-3)/visible_in_frames*100
+@printf "Reasonable for %d/%d frames (%.2f%%)\n" sum(t_errors[all_feas .!= -1] .< 1e3) visible_in_frames sum(t_errors[all_feas .!= -1] .< 1e3)/visible_in_frames*100
+@printf "Tight for %d/%d frames (%.2f%%)\n" sum(all_gaps[all_feas .!= -1] .< 1e-3) visible_in_frames sum(all_gaps[all_feas .!= -1] .< 1e-3)/visible_in_frames*100
 println("")
 
 function summarize(e)
@@ -128,15 +128,15 @@ function summarize(e)
     @printf "Median: %.1f (%.1f, %.1f)\n" median(e) quantile(e,0.25) quantile(e,0.75)
 end
 
-t_filtered = t_errors[all_feas .== 1]
+t_filtered = t_errors[all_feas .!= -1]
 printstyled("t errors (mm):\n",underline=true)
 summarize(t_filtered[t_filtered .< 1e3])
 
-R_filtered = R_errors[all_feas .== 1]
+R_filtered = R_errors[all_feas .!= -1]
 printstyled("R errors (deg):\n",underline=true)
 summarize(R_filtered[t_filtered .< 1e3])
 
-proj_filtered = proj_errors[all_feas .== 1]
+proj_filtered = proj_errors[all_feas .!= -1]
 printstyled("Proj errors (px):",underline=true)
 @printf " %.2f%% under 5 px\n" sum(proj_filtered .< 5)/visible_in_frames*100
 summarize(proj_filtered[t_filtered .< 1e3])
@@ -150,13 +150,13 @@ printstyled("On BOP Subset\n", bold=true)
 
 t_good = t_errors[good_names]
 printstyled("t errors (mm):\n",underline=true)
-summarize(t_good[all_feas[good_names] .== 1])
+summarize(t_good[all_feas[good_names] .!= -1])
 
 R_good = R_errors[good_names]
 printstyled("R errors (deg):\n",underline=true)
-summarize(R_good[all_feas[good_names] .== 1])
+summarize(R_good[all_feas[good_names] .!= -1])
 
-proj_good = proj_errors[good_names][all_feas[good_names] .== 1]
+proj_good = proj_errors[good_names][all_feas[good_names] .!= -1]
 printstyled("Proj errors (px):",underline=true)
 @printf " %.2f%% under 5 px\n" sum(proj_good .< 5)/length(all_feas[good_names] .!= -1)*100
 summarize(proj_good)

@@ -1,4 +1,4 @@
-## Get angular bounds?
+## Get translation bounds?
 
 using TSSOS, DynamicPolynomials
 
@@ -6,6 +6,12 @@ include("../src/refine.jl")
 
 @polyvar t[1:3]
 vars = t
+
+frame = 1
+center = [vec(R_ests[frame]); t_ests[frame]]
+H = all_H[frame]
+P = [zeros(3,9) diagm(ones(3))]
+H_t = inv(P*inv(H)*P')
 
 obj = -t[3]
 

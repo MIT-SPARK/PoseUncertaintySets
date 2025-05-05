@@ -1,4 +1,4 @@
-## Get angular bounds?
+## Get translation bounds?
 
 using TSSOS, DynamicPolynomials
 
@@ -8,7 +8,11 @@ include("../src/refine.jl")
 @polyvar t[1:3]
 vars = [vec(R); t]
 
-obj = -t[3]
+frame = 1
+center = [vec(R_ests[frame]); t_ests[frame]]
+H = all_H[frame]
+
+obj = t[3]
 
 # constraints
 ineq = zeros(Polynomial{true, Float64}, 0) # expr ≥ 0
@@ -24,6 +28,7 @@ push!(ineq, 1 - (vars - center)'*H*(vars - center))
 #     # front of camera: proj3dto2d[3] >= 0
 #     push!(ineq, proj3dto2d[3])
 # end
+# append!(ineq, t - [0; 0; 0.5])
 
 eq = zeros(Polynomial{true, Float64}, 0) # expr == 0
 # R ∈ SO(3)
