@@ -5,7 +5,7 @@ import Images, Plots
 import GeometryBasics
 using FileIO, MeshIO
 
-frame = 352
+frame = 1 #352
 plot_gt = false
 
 ## LOAD DATA
@@ -28,9 +28,37 @@ for (idx, kpt) = enumerate(eachcol(y))
     u = Int(round(kpt[2]))
     v = Int(round(kpt[1]))
     Plots.scatter!([v], [u], ms=Int(round(r[idx])), label=false, c=idx)
-    Plots.scatter!([v], [u], ms=2, label=false, c=idx)
+    Plots.scatter!([v], [u], ms=1, label=false, c=idx)
 end
 plot_kpts_l2 = Plots.plot!(img_kpts, grid=false, axis=false)
+
+begin
+    img_kpts = Images.RGBA.(copy(img)).*0
+    pixel_radius = 2
+    for (idx, kpt) = enumerate(eachcol(b))
+        kpt = camK*(R_gt*kpt + t_gt)
+        kpt ./= kpt[3]
+        u = Int(round(kpt[2]))
+        v = Int(round(kpt[1]))
+        # Plots.scatter!([v], [u], ms=Int(round(r[idx])), label=false, c=idx)
+        Plots.scatter!([v], [u], ms=1, label=false, c=idx, msc=:white)
+    end
+end
+
+R_est = R_ests[frame]
+t_est = t_ests[frame]
+begin
+    img_kpts = Images.RGBA.(copy(img)).*0
+    pixel_radius = 2
+    for (idx, kpt) = enumerate(eachcol(b))
+        kpt = camK*(R_est*kpt + t_est)
+        kpt ./= kpt[3]
+        u = Int(round(kpt[2]))
+        v = Int(round(kpt[1]))
+        # Plots.scatter!([v], [u], ms=Int(round(r[idx])), label=false, c=idx)
+        Plots.scatter!([v], [u], ms=1, label=false, c=idx, msc=:blue)
+    end
+end
 
 # linf
 Plots.plot(img, axis=false, title="Frame $frame")
@@ -60,6 +88,8 @@ b_proj = reduce(hcat, eachcol(b_proj) ./ b_proj[3,:])
 Plots.plot!(b_proj[1,:], b_proj[2,:])
 
 plot_kpts = Plots.plot!(img_kpts, grid=false, axis=false)
+
+# error("test")
 
 ## PLOT POSE ESTIMATE
 if plot_gt

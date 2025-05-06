@@ -112,7 +112,9 @@ function local_refine(q_front, q_backproj, q_eqs, data; analytic=analytic, lower
     t_est = vars_start[end-2:end]
 
     N = size(margin,1)
-    set_silent(model)
+    if silent
+        set_silent(model)
+    end
 
     @variable(model, margin_local[i=1:N], start=margin[i])
     @variable(model, R[i=1:3,j=1:3], start=R_est[i,j])

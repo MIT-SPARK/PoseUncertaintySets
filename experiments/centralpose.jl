@@ -17,7 +17,7 @@ silent = true
 
 # Load data
 cadpath = "./data/lmo/models_eval/"
-datapath = "./data/lmo/l2_04_real.dat"
+datapath = "./data/lmo/l2_01_real.dat"
 all_data = deserialize(datapath)
 camK = all_data["camK"]
 img_names = all_data["img"]
@@ -69,7 +69,7 @@ for frame = 1:num_frames
     all_gaps[frame] = gap
     all_times[frame] = time
 
-    R_ests[frame] = est_pose[1]
+    R_ests[frame] = project2SO3(est_pose[1])
     t_ests[frame] = est_pose[2]
     
     println("$frame: $status")

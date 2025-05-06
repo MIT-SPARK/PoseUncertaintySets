@@ -38,11 +38,11 @@ function uncertaintyset_l2(y, r, b, K)
         
         # backprojection (l2 norm)
         H = zeros(12,12)
-        H[1:9,1:9] = (iy3*kr_bK)'*(iy3*kr_bK) - r[i]*([0 0 1.]*kr_bK)'*([0 0 1.]*kr_bK) # verified
-        H[10:12,10:12] = (iy3*K)'*(iy3*K) - r[i]*([0 0 1.]*K)'*([0 0 1.]*K) # verified
-        H[10:12,1:9] = (iy3*K)'*(iy3*kr_bK) - r[i]*([0 0 1.]*K)'*([0 0 1.]*kr_bK) # verified
+        H[1:9,1:9] = (iy3*kr_bK)'*(iy3*kr_bK) - r[i]^2*([0 0 1.]*kr_bK)'*([0 0 1.]*kr_bK) # verified
+        H[10:12,10:12] = (iy3*K)'*(iy3*K) - r[i]^2*([0 0 1.]*K)'*([0 0 1.]*K) # verified
+        H[10:12,1:9] = (iy3*K)'*(iy3*kr_bK) - r[i]^2*([0 0 1.]*K)'*([0 0 1.]*kr_bK) # verified
         H[1:9,10:12] = H[10:12,1:9]'
-        H ./= r[i]
+        H ./= r[i]^2 # TODO: divide by r^2?
         c = zeros(12)
         s = 0.
         push!(q_backproj, Quadratic(H, c, s))

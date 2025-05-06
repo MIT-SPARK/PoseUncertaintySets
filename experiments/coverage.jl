@@ -1,0 +1,66 @@
+## Conformal coverage of poses and keypoints
+# Lorenzo Shaikewitz, 5/6/2025
+
+using Serialization
+using Statistics
+
+# TODO: move to module
+include("../src/uncertaintyset.jl")
+include("../src/center_l2.jl")
+
+# Parameters
+# 1, 5, 6, 8, 9, 10, 11, 12
+object_ids = [1,5,6,8,9,10,11,12]
+
+# Load data
+datapath = "./data/lmo/l2_01_real.dat"
+all_data = deserialize(datapath)
+camK = all_data["camK"]
+img_names = all_data["img"]
+num_frames = length(img_names)
+
+println(datapath)
+
+all_visible = []
+all_covered = []
+all_keypoints = []
+for object_id in object_ids
+    poses_covered = -ones(Int, num_frames)
+    keypoints_covered = -ones(num_frames)
+    for frame = good_names# 1:num_frames
+        if !(object_id in keys(all_data["radii"][frame]))
+            continue
+        end
+        # println(frame)
+
+        r = all_data["radii"][frame][object_id] .+ 1e-3 # make sure 0 radii doesn't happen
+        y = all_data["pixel_measurements"][frame][object_id]
+        b = all_data["canonical_kpts"][frame][object_id]
+
+        # build uncertainty set
+        q_front, q_backproj = uncertaintyset_l2(y, r, b, camK)
+        q_eqs = SO3_constraints()
+
+        gt = all_data["gt_poses"][frame][object_id]
+        R_gt = project2SO3(gt[1])
+        t_gt = gt[2] / 1000. # [m]
+        
+        vars_proj = [zeros(size(r,1)); vec(R_gt); t_gt]
+        poses_covered[frame] = check_feas(q_front, q_backproj, q_eqs, vars_proj; tol=1e-3, silent=true)
+
+        # keypoint coverage
+        y_gt = camK*(R_gt*b .+ t_gt)
+        y_gt = reduce(hcat, eachcol(y_gt) ./ y_gt[3,:])
+        keypoints_covered[frame] = (norm.(eachcol(y_gt - y)) .<= r)[1]
+    end
+    visible_in_frames = sum(poses_covered .!= -1)
+    covered = sum(poses_covered .== 1)
+    @printf "[%d] Coverage: %d/%d frames (%.2f%%)\n" object_id covered visible_in_frames sum(poses_covered .== 1)/visible_in_frames*100
+    @printf "[%d] Keypoints: %.2f%%\n" object_id mean(keypoints_covered[poses_covered .!= -1])*100
+
+
+    push!(all_visible, visible_in_frames)
+    push!(all_covered, covered)
+end
+
+@printf "Coverage: %.2f%% (%.2f%% -- %.2f%%)\n" sum(all_covered)/sum(all_visible)*100 minimum(all_covered ./ all_visible)*100 maximum(all_covered ./ all_visible)*100
