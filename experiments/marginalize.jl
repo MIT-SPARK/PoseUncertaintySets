@@ -31,7 +31,7 @@ all_gaps_rot = Array{Any}(undef, 3, num_frames)
 all_R_bounds = Array{Any}(undef, 3, num_frames)
 all_times_rot = -ones(num_frames)
 for frame = 1:num_frames
-    if (all_feas[frame] != 1)
+    if (all_feas[frame] == -1)
         continue
     end
 
@@ -54,13 +54,18 @@ for frame = 1:num_frames
     print("$frame ")
 end
 
-angular_bounds = mean.(eachrow(all_R_bounds[:,all_feas.==1]))
+ang_bounds = mean.(eachrow(all_R_bounds[:,all_feas.==1]))
 
 if sum(sum.(eachrow(all_status_rot[:,all_feas .== 1] .== OPTIMAL))) != 3*sum(all_feas .== 1)
     @warn "Not all solutions optimal--some bounds may not be accurate!"
 end
 
 # CDF Plots
+Plots.plot(sort(all_R_bounds[1,all_feas.!=-1])  .+ 1e-6, (1:visible_in_frames)./visible_in_frames, label="x")
+Plots.plot!(sort(all_R_bounds[2,all_feas.!=-1]) .+ 1e-6, (1:visible_in_frames)./visible_in_frames, label="y")
+Plots.plot!(sort(all_R_bounds[3,all_feas.!=-1]) .+ 1e-6, (1:visible_in_frames)./visible_in_frames, label="z")
+p2=Plots.plot!(xscale=:log10, ylabel="CDF", xlabel="Error Bound (m)")
+
 Plots.plot(sort(all_R_bounds[1,all_feas.==1])  .+ 1e-6, (1:num_feas)./num_feas, label="x")
 Plots.plot!(sort(all_R_bounds[2,all_feas.==1]) .+ 1e-6, (1:num_feas)./num_feas, label="y")
 Plots.plot!(sort(all_R_bounds[3,all_feas.==1]) .+ 1e-6, (1:num_feas)./num_feas, label="z")

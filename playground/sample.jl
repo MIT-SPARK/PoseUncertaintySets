@@ -26,7 +26,7 @@ img_names = all_data["img"]
 num_frames = length(img_names)
 
 # select frame
-frame = 1
+frame = 352
 
 ## Get center
 r = all_data["radii"][frame][object_id]
@@ -119,5 +119,5 @@ Plots.plot!(xlims=[t_center[1]-max_offset, t_center[1]+max_offset],
             ylims=[t_center[2]-max_offset, t_center[2]+max_offset],
             zlims=[t_center[3]-max_offset, t_center[3]+max_offset])
 
-println("Found $(length(good_centers)) good centers.")
+println("Found $(size(good_centers,2)) good centers.")
 p1

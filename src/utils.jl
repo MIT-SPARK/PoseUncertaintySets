@@ -136,6 +136,7 @@ function Ω2(q)
 end
 
 ## Copied from LorenzoRotations
+# TODO: just import LorenzoRotations
 @noinline my_slow_acos(x) = x ≈ 1 ? zero(x) : x ≈ -1 ? one(x)*π : acos(x)
 my_acos(x) = abs(x) <= one(x) ? acos(x) : my_slow_acos(x)
 
@@ -164,4 +165,20 @@ function project2SO3(M)
         R = F.U * Diagonal([ones(d-1); -1]) * F.V';  
     end
     return R
+end
+
+"""
+    axang2rotm(ω, θ)
+    
+Convert an axis `ω` and angle `θ` to a 3x3 rotation matrix.
+
+Normalizes `ω` and returns identity when `θ = 0`.
+"""
+function axang2rotm(ω, θ)
+    normalize!(ω)
+    if θ == 0
+        return diagm(ones(3))
+    end
+    K = [0. -ω[3] ω[2]; ω[3] 0. -ω[1]; -ω[2] ω[1] 0.]
+    R = I + sin(θ)*K + (1 - cos(θ))*(K*K)
 end

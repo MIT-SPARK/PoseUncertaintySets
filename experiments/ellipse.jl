@@ -29,7 +29,7 @@ all_status_ellipse = Vector{MOI.TerminationStatusCode}(undef, num_frames)
 all_times_ellipse = -ones(num_frames)
 all_H = Vector{Any}(undef, num_frames)
 for frame = 1:num_frames
-    if (all_feas[frame] != 1)
+    if (all_feas[frame] == -1)
         continue
     end
 

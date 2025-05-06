@@ -32,7 +32,7 @@ anim = @Plots.animate for frame = 1:num_frames
 
     # Option 1: project each coordinate of duck
     img2 = Images.RGBA.(copy(img)).*0
-    for coord in GeometryBasics.coordinates(duck_m)
+    for coord in GeometryBasics.coordinates(cad_m)
         pixel = camK*(R*coord + t)
         pixel ./= pixel[3]
         coords = [Int(round(pixel[1])), Int(round(pixel[2]))]
