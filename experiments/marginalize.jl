@@ -19,7 +19,7 @@ silent = true
 
 # Load data
 cadpath = "./data/lmo/models_eval/"
-datapath = "./data/lmo/l2.dat"
+datapath = "./data/lmo/l2_01_real.dat"
 all_data = deserialize(datapath)
 camK = all_data["camK"]
 img_names = all_data["img"]
@@ -64,9 +64,9 @@ end
 Plots.plot(sort(all_R_bounds[1,all_feas.!=-1])  .+ 1e-6, (1:visible_in_frames)./visible_in_frames, label="x")
 Plots.plot!(sort(all_R_bounds[2,all_feas.!=-1]) .+ 1e-6, (1:visible_in_frames)./visible_in_frames, label="y")
 Plots.plot!(sort(all_R_bounds[3,all_feas.!=-1]) .+ 1e-6, (1:visible_in_frames)./visible_in_frames, label="z")
-p2=Plots.plot!(xscale=:log10, ylabel="CDF", xlabel="Error Bound (m)")
+p2=Plots.plot!(ylabel="CDF", xlabel="Error Bound (deg)")
 
-Plots.plot(sort(all_R_bounds[1,all_feas.==1])  .+ 1e-6, (1:num_feas)./num_feas, label="x")
-Plots.plot!(sort(all_R_bounds[2,all_feas.==1]) .+ 1e-6, (1:num_feas)./num_feas, label="y")
-Plots.plot!(sort(all_R_bounds[3,all_feas.==1]) .+ 1e-6, (1:num_feas)./num_feas, label="z")
-p2=Plots.plot!(xscale=:log10, ylabel="CDF", xlabel="Error Bound (m)")
+# Plots.plot(sort(all_R_bounds[1,all_feas.==1])  .+ 1e-6, (1:num_feas)./num_feas, label="x")
+# Plots.plot!(sort(all_R_bounds[2,all_feas.==1]) .+ 1e-6, (1:num_feas)./num_feas, label="y")
+# Plots.plot!(sort(all_R_bounds[3,all_feas.==1]) .+ 1e-6, (1:num_feas)./num_feas, label="z")
+# p2=Plots.plot!(xscale=:log10, ylabel="CDF", xlabel="Error Bound (deg)")

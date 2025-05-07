@@ -72,7 +72,7 @@ function centralpose_l2(y, r, b, camK; lowerb=-0.8, upperb=0.8, tol=1e-3, silent
     sdp_sol_rounded = sdp_sol
     sdp_sol_rounded[end-3-9+1:end-3] = vec(project2SO3(reshape(sdp_sol[end-3-9+1:end-3],3,3)))
 
-    sol, refine_status = local_refine_tssos(opt, data; QUIET=silent, startpoint=sdp_sol_rounded)
+    sol, refine_status, gap = local_refine_tssos(opt, data; QUIET=silent, startpoint=sdp_sol_rounded)
 
     if !silent
         println("SDP status: $(data.SDP_status)")
@@ -146,6 +146,172 @@ function centralpose_percent_l2(y, r, b, camK; lowerb=0.2, upperb=2, tol=1e-3, s
     # solve
     pop = [obj; ineq; eq]
     order = 2
+    opt, sol, data = cs_tssos_first(pop, vars, order, numeq=length(eq), TS="MD", QUIET=silent, solution=true, LorenzoOverride=true)
+    sdp_sol,gap,data.flag = TSSOS.approx_sol(opt, data.moment, data.n, data.cliques, data.cql, data.cliquesize, data.supp, data.coe, numeq=data.numeq, tol=data.tol)
+
+    sdp_sol_rounded = sdp_sol
+    sdp_sol_rounded[end-3-9+1:end-3] = vec(project2SO3(reshape(sdp_sol[end-3-9+1:end-3],3,3)))
+
+    sol, refine_status, gap = local_refine_tssos(opt, data; QUIET=silent, startpoint=sdp_sol_rounded)
+
+    if !silent
+        println("SDP status: $(data.SDP_status)")
+        println("Loc status: $(refine_status)")
+    end
+
+    R_est = project2SO3(reshape(sol[end-3-9+1:end-3],3,3))
+    t_est = sol[end-2:end]
+
+    vars_proj = [sol[1:end-3-9]; vec(R_est); t_est]
+
+    # check feasibility
+    ineq_subed = [ineq_i(vars=>vars_proj) for ineq_i in ineq]
+    feasibility = sum(ineq_subed .< -tol) == 0
+    
+    return (R_est, t_est), data.SDP_status, vars_proj, feasibility, gap
+end
+
+
+"""
+    centralpose_linf(y, r, b, camK[;])
+
+second order relaxation with linf form of pose uncertainty set.
+
+Returns pose estimate, optimization status, solution data, JuMP model
+
+# Arguments
+- `y`: pixel keypoints [3 x N] (homogenized)
+- `r`: l2 radii for each keypoint [N]
+- `b`: 3D canonical keypoint frame, meters [3 x N]
+- `camK`: camera calibration matrix [3 x 3]
+## Optional Arguments
+- `lowerb=-0.8`: lower bound the margins
+- `upperb=0.8`: upper bound the margins
+- `silent=false`: should we print things?
+"""
+function centralpose_linf(y, r, b, camK; lowerb=-0.8, upperb=0.8, tol=1e-3, silent=false)
+    N = size(r,1)
+    @polyvar margin[1:N]
+    @polyvar R[1:3,1:3]
+    @polyvar t[1:3]
+    vars = [margin; vec(R); t]
+
+    # objective: max margin
+    obj = -sum(margin)
+
+    # constraints
+    ineq = zeros(Polynomial{true, Float64}, 0) # expr ≥ 0
+    eq = zeros(Polynomial{true, Float64}, 0)
+
+    # pose uncertainty set
+    X = [vec(R); t; 1]*[vec(R); t; 1]'
+    for i = 1:N
+        proj3dto2d = camK*(R*b[:,i] + t)
+        # front of camera
+        append!(ineq, [proj3dto2d[3]])
+        # PURSE
+        residual = (I - y[:,i]*[0;0;1]')*proj3dto2d
+        # inf-norm
+        append!(ineq, (r[i] - margin[i])*proj3dto2d[3] .- residual)
+        append!(ineq, (r[i] - margin[i])*proj3dto2d[3] .+ residual)
+    end
+    # SO(3) constraints
+    append!(eq, vec(R'*R - I)) # O(3)
+    append!(eq, R[1:3,3] .- cross(R[1:3,1],R[1:3,2]))
+    append!(eq, R[1:3,1] .- cross(R[1:3,2],R[1:3,3]))
+    append!(eq, R[1:3,2] .- cross(R[1:3,3],R[1:3,1]))
+
+    # bounds
+    if !isnothing(lowerb)
+        append!(ineq, margin .- lowerb) # ≥ 0
+    end
+    append!(ineq, upperb .- margin) # ≥ 0
+
+    # solve
+    pop = [obj; ineq; eq]
+    order = 1
+    opt, sol, data = cs_tssos_first(pop, vars, order, numeq=length(eq), TS="MD", QUIET=silent, solution=true, LorenzoOverride=true)
+    sdp_sol,gap,data.flag = TSSOS.approx_sol(opt, data.moment, data.n, data.cliques, data.cql, data.cliquesize, data.supp, data.coe, numeq=data.numeq, tol=data.tol)
+    
+    sdp_sol_rounded = sdp_sol
+    sdp_sol_rounded[end-3-9+1:end-3] = vec(project2SO3(reshape(sdp_sol[end-3-9+1:end-3],3,3)))
+
+    sol, refine_status, gap = local_refine_tssos(opt, data; QUIET=silent, startpoint=sdp_sol_rounded)
+
+    if !silent
+        println("SDP status: $(data.SDP_status)")
+        println("Loc status: $(refine_status)")
+    end
+
+    R_est = project2SO3(reshape(sol[end-3-9+1:end-3],3,3))
+    t_est = sol[end-2:end]
+
+    vars_proj = [sol[1:end-3-9]; vec(R_est); t_est]
+
+    # check feasibility
+    ineq_subed = [ineq_i(vars=>vars_proj) for ineq_i in ineq]
+    feasibility = sum(ineq_subed .< -tol) == 0
+    
+    return (R_est, t_est), data.SDP_status, vars_proj, feasibility, gap
+end
+
+
+"""
+    centralpose_percent_l2(y, r, b, camK[;])
+
+second order relaxation with l2 form of pose uncertainty set.
+
+Returns pose estimate, optimization status, solution data, JuMP model
+
+# Arguments
+- `y`: pixel keypoints [3 x N] (homogenized)
+- `r`: l2 radii for each keypoint [N]
+- `b`: 3D canonical keypoint frame, meters [3 x N]
+- `camK`: camera calibration matrix [3 x 3]
+## Optional Arguments
+- `lowerb=0.2`: lower bound percentage
+- `lowerb=2`: upper bound percentage
+- `silent=false`: should we print things?
+"""
+function centralpose_percent_linf(y, r, b, camK; lowerb=0.2, upperb=2, tol=1e-3, silent=false)
+    N = size(r,1)
+    @polyvar margin[1:N]
+    @polyvar R[1:3,1:3]
+    @polyvar t[1:3]
+    vars = [margin; vec(R); t]
+
+    # objective: min margin percentages
+    obj = sum(margin)
+
+    # constraints
+    ineq = zeros(Polynomial{true, Float64}, 0) # expr ≥ 0
+    eq = zeros(Polynomial{true, Float64}, 0)
+
+    # pose uncertainty set
+    X = [vec(R); t; 1]*[vec(R); t; 1]'
+    for i = 1:N
+        proj3dto2d = camK*(R*b[:,i] + t)
+        # front of camera
+        append!(ineq, [proj3dto2d[3]])
+        # PURSE
+        residual = (I - y[:,i]*[0;0;1]')*proj3dto2d
+        # inf-norm
+        append!(ineq, (r[i]*margin[i])*proj3dto2d[3] .- residual)
+        append!(ineq, (r[i]*margin[i])*proj3dto2d[3] .+ residual)
+    end
+    # SO(3) constraints
+    append!(eq, vec(R'*R - I)) # O(3)
+    append!(eq, R[1:3,3] .- cross(R[1:3,1],R[1:3,2]))
+    append!(eq, R[1:3,1] .- cross(R[1:3,2],R[1:3,3]))
+    append!(eq, R[1:3,2] .- cross(R[1:3,3],R[1:3,1]))
+
+    # bounds
+    append!(ineq, margin  .- lowerb) # ≥ 0
+    append!(ineq, upperb .- margin) # ≥ 0
+
+    # solve
+    pop = [obj; ineq; eq]
+    order = 1
     opt, sol, data = cs_tssos_first(pop, vars, order, numeq=length(eq), TS="MD", QUIET=silent, solution=true, LorenzoOverride=true)
     sdp_sol,gap,data.flag = TSSOS.approx_sol(opt, data.moment, data.n, data.cliques, data.cql, data.cliquesize, data.supp, data.coe, numeq=data.numeq, tol=data.tol)
 

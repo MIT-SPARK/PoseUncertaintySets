@@ -27,8 +27,6 @@ calibrated_frames = open("./data/lmo/valid_test_frames.txt") do f
     readlines(f) |> (s-> parse.(Int,s))
 end
 
-println(datapath)
-
 # status_dict = 
 # for object_id in object_ids
     println("-------$object_id-------")
@@ -54,8 +52,13 @@ println(datapath)
         b = all_data["canonical_kpts"][frame][object_id]
 
         # find center
-        out = @timed centralpose_l2(y, r, b, camK; upperb=0.7*r, lowerb=-0.9*r, silent=silent)
-        # out = @timed centralpose_percent_l2(y, r, b, camK; lowerb=0.3, upperb=2., silent=silent)
+        if l2
+            # out = @timed centralpose_l2(y, r, b, camK; upperb=0.7*r, lowerb=-0.9*r, silent=silent)
+            out = @timed centralpose_percent_l2(y, r, b, camK; lowerb=0.3, upperb=2., silent=silent)
+        else
+            out = @timed centralpose_linf(y, r, b, camK; upperb=0.7*r, lowerb=-0.9*r, silent=silent)
+            # out = @timed centralpose_percent_linf(y, r, b, camK; lowerb=0.3, upperb=2., silent=silent)
+        end
         sdp_pose, status, vars_proj, feas, gap = out.value
         time = out.time - out.compile_time
 
@@ -73,6 +76,8 @@ println(datapath)
 # end
 
 
+
+println(datapath)
 
 ## TODO: MOVE SUMMARY
 ## Compute errors
