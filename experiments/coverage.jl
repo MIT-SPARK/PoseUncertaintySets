@@ -6,18 +6,23 @@ using Statistics
 
 # TODO: move to module
 include("../src/uncertaintyset.jl")
-include("../src/center_l2.jl")
 
 # Parameters
 # 1, 5, 6, 8, 9, 10, 11, 12
 object_ids = [1,5,6,8,9,10,11,12]
 
 # Load data
-datapath = "./data/lmo/l2_01_real.dat"
+datapath = "./data/lmo/l2_04.dat"
+exclude_bop200 = true
+
 all_data = deserialize(datapath)
 camK = all_data["camK"]
 img_names = all_data["img"]
 num_frames = length(img_names)
+
+calibrated_frames = open("./data/lmo/valid_test_frames.txt") do f
+    readlines(f) |> (s-> parse.(Int,s))
+end
 
 println(datapath)
 
@@ -27,7 +32,13 @@ all_keypoints = []
 for object_id in object_ids
     poses_covered = -ones(Int, num_frames)
     keypoints_covered = -ones(num_frames)
-    for frame = good_names# 1:num_frames
+    for frame = 1:num_frames # good_names
+        if exclude_bop200
+            if frame in good_names
+                continue
+            end
+        end
+
         if !(object_id in keys(all_data["radii"][frame]))
             continue
         end
@@ -51,16 +62,19 @@ for object_id in object_ids
         # keypoint coverage
         y_gt = camK*(R_gt*b .+ t_gt)
         y_gt = reduce(hcat, eachcol(y_gt) ./ y_gt[3,:])
-        keypoints_covered[frame] = (norm.(eachcol(y_gt - y)) .<= r)[1]
+        keypoints_covered[frame] = mean(norm.(eachcol(y_gt - y)) .<= r)
     end
     visible_in_frames = sum(poses_covered .!= -1)
     covered = sum(poses_covered .== 1)
-    @printf "[%d] Coverage: %d/%d frames (%.2f%%)\n" object_id covered visible_in_frames sum(poses_covered .== 1)/visible_in_frames*100
-    @printf "[%d] Keypoints: %.2f%%\n" object_id mean(keypoints_covered[poses_covered .!= -1])*100
+    @printf "[%02d] Poses: %d/%d frames (%.2f%%)\n" object_id covered visible_in_frames sum(poses_covered .== 1)/visible_in_frames*100
+    @printf "     Kypts: %.2f%%\n" mean(keypoints_covered[poses_covered .!= -1])*100
 
 
     push!(all_visible, visible_in_frames)
     push!(all_covered, covered)
+    push!(all_keypoints, mean(keypoints_covered[poses_covered .!= -1]))
 end
 
-@printf "Coverage: %.2f%% (%.2f%% -- %.2f%%)\n" sum(all_covered)/sum(all_visible)*100 minimum(all_covered ./ all_visible)*100 maximum(all_covered ./ all_visible)*100
+println("--------------")
+@printf "Pose coverage: %.2f%% (%.2f%% -- %.2f%%)\n" sum(all_covered)/sum(all_visible)*100 minimum(all_covered ./ all_visible)*100 maximum(all_covered ./ all_visible)*100
+@printf "Kypt coverage: %.2f%% (%.2f%% -- %.2f%%)\n" mean(all_keypoints)*100 minimum(all_keypoints)*100 maximum(all_keypoints)*100

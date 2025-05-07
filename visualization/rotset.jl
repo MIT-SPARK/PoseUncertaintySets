@@ -21,14 +21,16 @@ b = all_data["canonical_kpts"][frame][object_id]
 Rc = R_ests[frame]
 tc = t_ests[frame]
 
-R_bound = all_R_bounds[:,frame]
-
 # central pose
 mask_center = get_mask(img, Rc, tc, cad_m, camK)
 mask = copy(mask_center)
 p1=Plots.plot(img, axis=false, grid=false, title="Frame $frame")
-# Plots.plot!(mask)
+img_center = Images.RGBA.(copy(img)).*0
+img_center[mask] .= Images.RGBA(0,1,1, 0.5)
+# Plots.plot!(img_center)
 
+# ellipse
+R_bound = all_R_bounds[:,frame]
 for j = 1:3
     println(j)
     global mask
