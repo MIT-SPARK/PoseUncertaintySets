@@ -3,18 +3,20 @@
 
 using Serialization
 using Statistics
+using Printf
 
 # TODO: move to module
 include("../src/uncertaintyset.jl")
 
-# Parameters
-# 1, 5, 6, 8, 9, 10, 11, 12
+# PARAMETERS
+l2 = true # alt is linf
+α = 0.4
+real_cal = !true
+exclude_bop200 = true
 object_ids = [1,5,6,8,9,10,11,12]
 
-# Load data
-datapath = "./data/lmo/l2_04.dat"
-exclude_bop200 = true
-
+# load data
+datapath = @sprintf "./data/lmo/l%s_%02d%s.dat" (l2 ? "2" : "inf") Int(α*10) (real_cal ? "_real" : "")
 all_data = deserialize(datapath)
 camK = all_data["camK"]
 img_names = all_data["img"]
@@ -32,26 +34,29 @@ all_keypoints = []
 for object_id in object_ids
     poses_covered = -ones(Int, num_frames)
     keypoints_covered = -ones(num_frames)
-    for frame = 1:num_frames # good_names
+    for frame = 1:num_frames
         if exclude_bop200
-            if frame in good_names
+            if frame in calibrated_frames
                 continue
             end
         end
-
         if !(object_id in keys(all_data["radii"][frame]))
             continue
         end
-        # println(frame)
 
         r = all_data["radii"][frame][object_id] .+ 1e-3 # make sure 0 radii doesn't happen
         y = all_data["pixel_measurements"][frame][object_id]
         b = all_data["canonical_kpts"][frame][object_id]
 
         # build uncertainty set
-        q_front, q_backproj = uncertaintyset_l2(y, r, b, camK)
+        if l2
+            q_front, q_backproj = uncertaintyset_l2(y, r, b, camK)
+        else
+            q_front, q_backproj = uncertaintyset_linf(y, r, b, camK)
+        end
         q_eqs = SO3_constraints()
 
+        # pose coverage
         gt = all_data["gt_poses"][frame][object_id]
         R_gt = project2SO3(gt[1])
         t_gt = gt[2] / 1000. # [m]

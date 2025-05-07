@@ -102,3 +102,61 @@ function uncertaintyset_linf(y, r, b, K)
 
     return q_front, q_backproj
 end
+
+# TODO: redundant constraints for S-Lemma
+
+
+"""
+    check_feas(q_front, q_backproj, q_eqs, vars_proj; tol=1e-3, silent=true)
+
+Check feasibility of pose given margins with tolerance `tol`.
+
+`vars_proj` should be `[margins; vec(R); t]`
+"""
+function check_feas(q_front, q_backproj, q_eqs, vars_proj; tol=1e-3, silent=true)
+    margin = vars_proj[1:end-3-9]
+    
+    # check for linf
+    N = length(q_front)
+    if length(q_backproj) > N
+        margin = repeat(margin, inner=4)
+    end
+
+    feasible = true
+    x_test = [vars_proj[end-3-9+1:end]; 1]
+    X_test = x_test*x_test'
+    for (i,q) in enumerate(q_front)
+        Q = Symmetric([q.H  q.c;  q.c'  q.d])
+        if !(tr(Q*X_test) <= tol)
+            if !silent
+                printstyled("FoC Ineq. $i fails: ",color=:red)
+                print(tr(Q*X_test))
+                println(" > 0")
+            end
+            feasible = false
+        end
+    end
+    for (i,q) in enumerate(q_backproj)
+        Q = Symmetric([q.H  q.c;  q.c'  q.d])
+        if !(tr(Q*X_test) <= -margin[i] + tol)
+            if !silent
+                printstyled("BP Ineq. $i fails: ",color=:red)
+                print(tr(Q*X_test) - -margin[i])
+                println(" > 0")
+            end
+            feasible = false
+        end
+    end
+    for (i,q) in enumerate(q_eqs)
+        Q = [q.H  q.c;  q.c'  q.d]
+        if !(abs(tr(Q*X_test)) <= tol)
+            if !silent
+                printstyled("Eq. $i fails: ",color=:red)
+                print(tr(Q*X_test))
+                println(" != 0")
+            end
+            feasible = false
+        end
+    end
+    return feasible
+end
