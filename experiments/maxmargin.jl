@@ -17,7 +17,7 @@ silent = true
 
 # Load data
 cadpath = "./data/lmo/models_eval/"
-datapath = "./data/lmo/l2_04.dat"
+datapath = "./data/lmo/l2_04_real.dat"
 all_data = deserialize(datapath)
 camK = all_data["camK"]
 img_names = all_data["img"]

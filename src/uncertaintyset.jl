@@ -22,7 +22,7 @@ Generate pose uncertainty set (l2 norm) from problem data.
 - `q_front`: list of chirality constraints ≤ 0 [N]
 - `q_backproj`: list of backprojection constraints ≤ 0 [N]
 """
-function uncertaintyset_l2(y, r, b, K; func=false)
+function uncertaintyset_l2(y, r, b, K)
     N = size(y,2)
     q_front = Vector{Quadratic}(undef, 0)
     q_backproj = Vector{Quadratic}(undef, 0)

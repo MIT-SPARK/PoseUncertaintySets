@@ -12,25 +12,25 @@ silent = false
 
 # Load data
 cadpath = "./data/lmo/models_eval/"
-datapath = "./data/lmo/l2.dat"
+datapath = "./data/lmo/l2_04_real.dat"
 all_data = deserialize(datapath)
 camK = all_data["camK"]
 img_names = all_data["img"]
 num_frames = length(img_names)
 
 
-frame = 5
+frame = 1
 
 r = all_data["radii"][frame][object_id] .+ 1e-3 # make sure 0 radii doesn't happen
 y = all_data["pixel_measurements"][frame][object_id]
 b = all_data["canonical_kpts"][frame][object_id]
 
 # build uncertainty set
-q_front, q_backproj = uncertaintyset_l2(y, r, b, camK; func=true)
+q_front, q_backproj = uncertaintyset_l2(y, r, b, camK)
 q_eqs = SO3_constraints()
 
 
-lowerb = 0.8*r
+lowerb = -0.8*r
 upperb = 0.8*r
 
 # ----------------

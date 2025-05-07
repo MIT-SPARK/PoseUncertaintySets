@@ -9,12 +9,6 @@ struct Quadratic
     d ::Float64
 end
 
-struct QuadraticFunction
-    H
-    c
-    d
-end
-
 ## SO(3) constraints in quadratic form
 function SO3_constraints()
     q_eqs = Vector{Quadratic}(undef, 0)
