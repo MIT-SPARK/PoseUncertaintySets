@@ -2,6 +2,7 @@
 # Lorenzo Shaikewitz, 4/29/2025
 
 using LinearAlgebra
+using DynamicPolynomials
 
 # TODO: move to module
 include("utils.jl")
@@ -21,10 +22,10 @@ Generate pose uncertainty set (l2 norm) from problem data.
 - `q_front`: list of chirality constraints ≤ 0 [N]
 - `q_backproj`: list of backprojection constraints ≤ 0 [N]
 """
-function uncertaintyset_l2(y, r, b, K)
+function uncertaintyset_l2(y, r, b, K; func=false)
     N = size(y,2)
-    q_front = []
-    q_backproj = []
+    q_front = Vector{Quadratic}(undef, 0)
+    q_backproj = Vector{Quadratic}(undef, 0)
 
     for i = 1:N
         iy3 = (I - y[:,i]*[0 0 1])
