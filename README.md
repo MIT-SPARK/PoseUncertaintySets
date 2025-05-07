@@ -7,4 +7,5 @@ TODO
 
 ## Experiment Taxonomy
 ### Conformal coverage
+As of May 7 this script is *done*. It reports the keypoint coverage and pose coverage for each object across the whole dataset.
 

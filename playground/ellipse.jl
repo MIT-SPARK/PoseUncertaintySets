@@ -5,7 +5,7 @@ using Serialization
 
 # TODO: move to module
 include("../src/uncertaintyset.jl")
-include("../src/center_l2.jl")
+include("../src/maxmargin.jl")
 include("../src/slemma.jl")
 
 # Parameters

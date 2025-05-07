@@ -1,4 +1,4 @@
-## Functions to compute the central pose
+## Functions to compute the maximum margin solution
 # Lorenzo Shaikewitz, 4/29/2025
 
 using Printf
