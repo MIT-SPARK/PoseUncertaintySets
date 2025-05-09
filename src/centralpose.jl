@@ -4,6 +4,7 @@
 using Printf
 using LinearAlgebra
 using TSSOS, DynamicPolynomials
+using JuMP, Ipopt
 
 # TODO: move to submodule
 include("utils.jl")
@@ -73,6 +74,7 @@ function centralpose_l2(y, r, b, camK; lowerb=-0.8, upperb=0.8, tol=1e-3, silent
     sdp_sol_rounded[end-3-9+1:end-3] = vec(project2SO3(reshape(sdp_sol[end-3-9+1:end-3],3,3)))
 
     sol, refine_status, gap = local_refine_tssos(opt, data; QUIET=silent, startpoint=sdp_sol_rounded)
+    # sol, refine_status, gap = refine_l2(y, r, b, camK, sdp_sol_rounded, opt; lowerb=lowerb, upperb=upperb, tol=tol, silent=silent)
 
     if !silent
         println("SDP status: $(data.SDP_status)")
@@ -204,7 +206,6 @@ function centralpose_linf(y, r, b, camK; lowerb=-0.8, upperb=0.8, tol=1e-3, sile
     eq = zeros(Polynomial{true, Float64}, 0)
 
     # pose uncertainty set
-    X = [vec(R); t; 1]*[vec(R); t; 1]'
     for i = 1:N
         proj3dto2d = camK*(R*b[:,i] + t)
         # front of camera
@@ -237,6 +238,7 @@ function centralpose_linf(y, r, b, camK; lowerb=-0.8, upperb=0.8, tol=1e-3, sile
     sdp_sol_rounded[end-3-9+1:end-3] = vec(project2SO3(reshape(sdp_sol[end-3-9+1:end-3],3,3)))
 
     sol, refine_status, gap = local_refine_tssos(opt, data; QUIET=silent, startpoint=sdp_sol_rounded)
+    # sol, refine_status, gap = refine_linf(y, r, b, camK, sdp_sol_rounded, opt; lowerb=lowerb, upperb=upperb, tol=tol, silent=silent)
 
     if !silent
         println("SDP status: $(data.SDP_status)")
@@ -288,7 +290,6 @@ function centralpose_percent_linf(y, r, b, camK; lowerb=0.2, upperb=2, tol=1e-3,
     eq = zeros(Polynomial{true, Float64}, 0)
 
     # pose uncertainty set
-    X = [vec(R); t; 1]*[vec(R); t; 1]'
     for i = 1:N
         proj3dto2d = camK*(R*b[:,i] + t)
         # front of camera
@@ -336,3 +337,110 @@ function centralpose_percent_linf(y, r, b, camK; lowerb=0.2, upperb=2, tol=1e-3,
     
     return (R_est, t_est), data.SDP_status, vars_proj, feasibility, gap
 end
+
+
+# function refine_l2(y, r, b, camK, start, opt; lowerb=-0.8, upperb=0.8, tol=1e-3, silent=false)
+#     # local solver
+#     model = Model(Ipopt.Optimizer)
+#     if silent
+#         set_silent(model)
+#     end
+
+#     margin = start[1:end-3-9]
+#     R_est = reshape(start[end-3-9+1:end-3],3,3)
+#     t_est = start[end-2:end]
+#     N = size(margin,1)
+
+#     @variable(model, margin_local[i=1:N], start=margin[i])
+#     @variable(model, R[i=1:3,j=1:3], start=R_est[i,j])
+#     @variable(model, t[i=1:3], start=t_est[i])
+
+#     obj = sum(margin_local)
+#     @objective(model, Max, sum(margin_local))
+
+#     # constraints
+#     for i = 1:N
+#         proj3dto2d = camK*(R*b[:,i] + t)
+#         # front of camera
+#         @constraint(model, proj3dto2d[3] >= 0)
+#         # PURSE
+#         residual = (I - y[:,i]*[0;0;1]')*proj3dto2d
+#         # 2-norm
+#         @constraint(model, (r[i] - margin_local[i])^2*(proj3dto2d[3])^2 - residual'*residual >= 0)
+#     end
+#     @constraint(model, vec(R'*R - I) .== 0)
+#     @constraint(model, R[1:3,3] .== cross(R[1:3,1],R[1:3,2]))
+#     @constraint(model, R[1:3,1] .== cross(R[1:3,2],R[1:3,3]))
+#     @constraint(model, R[1:3,2] .== cross(R[1:3,3],R[1:3,1]))
+
+#     # bounds
+#     if !isnothing(lowerb)
+#         @constraint(model, margin_local .>= lowerb)
+#     end
+#     @constraint(model, margin_local .<= upperb)
+
+#     optimize!(model)
+
+#     sol = [value.(margin_local); vec(value.(R)); value.(t)]
+
+#     # compute gap
+#     ub = value(obj)
+#     gap = abs(opt-ub)/max(1, abs(ub))
+
+#     return sol, termination_status(model), gap
+# end
+
+
+# function refine_linf(y, r, b, camK, start, opt; lowerb=-0.8, upperb=0.8, tol=1e-3, silent=false)
+#     # local solver
+#     model = Model(Ipopt.Optimizer)
+#     if silent
+#         set_silent(model)
+#     end
+#     # set_time_limit_sec(model, 0.1)
+#     # set_optimizer_attribute(model, "max_iter", 500)
+
+#     margin = start[1:end-3-9]
+#     R_est = reshape(start[end-3-9+1:end-3],3,3)
+#     t_est = start[end-2:end]
+#     N = size(margin,1)
+
+#     @variable(model, margin_local[i=1:N], start=margin[i])
+#     @variable(model, R[i=1:3,j=1:3], start=R_est[i,j])
+#     @variable(model, t[i=1:3], start=t_est[i])
+
+#     obj = sum(margin_local)
+#     @objective(model, Max, sum(margin_local))
+
+#     # constraints
+#     for i = 1:N
+#         proj3dto2d = camK*(R*b[:,i] + t)
+#         # front of camera
+#         @constraint(model, proj3dto2d[3] >= 0)
+#         # PURSE
+#         residual = (I - y[:,i]*[0;0;1]')*proj3dto2d
+#         # inf-norm
+#         @constraint(model, (r[i] - margin_local[i])*proj3dto2d[3] .- residual .>= 0)
+#         @constraint(model, (r[i] - margin_local[i])*proj3dto2d[3] .+ residual .>= 0)
+#     end
+#     @constraint(model, vec(R'*R - I) .== 0)
+#     @constraint(model, R[1:3,3] .== cross(R[1:3,1],R[1:3,2]))
+#     @constraint(model, R[1:3,1] .== cross(R[1:3,2],R[1:3,3]))
+#     @constraint(model, R[1:3,2] .== cross(R[1:3,3],R[1:3,1]))
+
+#     # bounds
+#     if !isnothing(lowerb)
+#         @constraint(model, margin_local .>= lowerb)
+#     end
+#     @constraint(model, margin_local .<= upperb)
+
+#     optimize!(model)
+
+#     sol = [value.(margin_local); vec(value.(R)); value.(t)]
+
+#     # compute gap
+#     ub = value(obj)
+#     gap = abs(opt-ub)/max(1, abs(ub))
+
+#     return sol, termination_status(model), gap
+# end

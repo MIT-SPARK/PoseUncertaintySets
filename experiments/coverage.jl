@@ -10,9 +10,9 @@ include("../src/uncertaintyset.jl")
 
 # PARAMETERS
 l2 = true # alt is linf
-α = 0.4
+α = 0.01
 real_cal = !true
-exclude_bop200 = true
+exclude_bop200 = !true
 object_ids = [1,5,6,8,9,10,11,12]
 
 # load data

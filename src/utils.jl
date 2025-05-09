@@ -9,6 +9,15 @@ struct Quadratic
     d ::Float64
 end
 
+struct Params
+    l2::Bool
+    α ::Float64
+    real_cal::Bool
+    percent::Bool
+    lowerb
+    upperb
+end
+
 ## SO(3) constraints in quadratic form
 function SO3_constraints()
     q_eqs = Vector{Quadratic}(undef, 0)
