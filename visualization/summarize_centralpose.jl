@@ -6,6 +6,30 @@ function summarize(e)
     @printf "Median: %.1f (%.1f, %.1f)\n" median(e) quantile(e,0.25) quantile(e,0.75)
 end
 
+# linf_01
+
+include("../src/utils.jl")
+
+# to load data
+begin
+    using Serialization, JuMP, Printf
+    datafile = "linf_01_percent01"
+    out = deserialize(datafile)
+    println("***********$datafile************")
+    status_dict = out["status"]
+    object_ids = sort(Int.(keys(status_dict)))
+    params = out["params"]
+    datapath = @sprintf "./data/lmo/l%s_%02d%s.dat" (params.l2 ? "2" : "inf") Int(params.α*10) (params.real_cal ? "_real" : "")
+
+    all_data = deserialize(datapath)
+    camK = all_data["camK"]
+    img_names = all_data["img"]
+    num_frames = length(img_names)
+end
+
+cadpath = "./data/lmo/models_eval/" # _eval
+cadnames = Dict(1=>"ape", 5=>"can", 6=>"cat", 8=>"driller", 9=>"duck", 10=>"eggbox", 11=>"glue", 12=>"holepuncher")
+
 println(datapath)
 
 all_proj_errors = Dict()
@@ -19,7 +43,7 @@ for object_id in object_ids
     t_ests = status_dict[object_id]["t_ests"]
 
 
-    println("\n-------$object_id-------")
+    println("\n-------$object_id ($(cadnames[object_id]))-------")
     ## Compute errors
     import GeometryBasics
     using FileIO, MeshIO
@@ -89,9 +113,15 @@ println("\n$datapath averages:")
 
 sum_proj = 0.
 tot_frames = 0
+mean_projs = []
 for (key, val) in all_proj_errors
     global sum_proj += sum(val .< 5)
     global tot_frames += length(val)
+    global mean_projs
+    push!(mean_projs, sum(val .< 5)/length(val))
 end
-printstyled("Proj errors (px):",underline=true)
+printstyled("Correct proj errors (px):",underline=true)
 @printf " %.2f%% under 5 px\n" sum_proj/tot_frames*100
+
+printstyled("Mean proj errors (px):",underline=true)
+@printf " %.2f%% under 5 px\n" mean(mean_projs)*100

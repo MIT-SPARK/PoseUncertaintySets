@@ -8,29 +8,33 @@ include("../src/uncertaintyset.jl")
 include("../src/centralpose.jl")
 
 # PARAMETERS
-l2 = true # alt is linf
-α = 0.1
-real_cal = true
+l2 = !true # alt is linf
+α = 0.4
+real_cal = !true
 exclude_bop200 = false
 silent = true
 
 percent = true
-lowerb = 0.1 # -0.9
-upperb = 2 # 0.7
+lowerb = 0.01 # -0.9
+upperb = 10 # 0.7
+double_local = false
 params = Params(l2, α, real_cal, percent, lowerb, upperb)
-savename = "l2_01_percent0.1"
+savename = "linf_04_percent01_syn"
 
 # object_id = 9
 object_ids = [1,5,6,8,9,10,11,12]
 
 # load data
-cadpath = "./data/lmo/models_eval/"
 datapath = @sprintf "./data/lmo/l%s_%02d%s.dat" (l2 ? "2" : "inf") Int(α*10) (real_cal ? "_real" : "")
 # datapath = @sprintf "./data/lmo/l%s_%03d%s.dat" (l2 ? "2" : "inf") Int(α*100) (real_cal ? "_real" : "")
 all_data = deserialize(datapath)
 camK = all_data["camK"]
 img_names = all_data["img"]
 num_frames = length(img_names)
+
+println(datapath)
+println(lowerb)
+println("-------------")
 
 calibrated_frames = open("./data/lmo/valid_test_frames.txt") do f
     readlines(f) |> (s-> parse.(Int,s))
@@ -41,6 +45,7 @@ for object_id in object_ids
     println("-------$object_id-------")
 
     all_status = Vector{MOI.TerminationStatusCode}(undef, num_frames)
+    all_status_loc = Vector{MOI.TerminationStatusCode}(undef, num_frames)
     all_feas = -ones(Int, num_frames)
     all_gaps = -ones(num_frames)
     all_times = -ones(num_frames)
@@ -69,16 +74,18 @@ for object_id in object_ids
             end
         else
             if percent
-                out = @timed centralpose_percent_linf(y, r, b, camK; lowerb=lowerb, upperb=upperb, silent=silent)
+                out = @timed centralpose_percent_linf(y, r, b, camK; lowerb=lowerb, upperb=upperb, silent=silent, double_local=double_local)
+                # out = @timed centralpose_percent_linf_LOCAL(y, r, b, camK; lowerb=lowerb, upperb=upperb, silent=silent)
             else
                 out = @timed centralpose_linf(y, r, b, camK; upperb=upperb*r, lowerb=lowerb*r, silent=silent)
             end
         end
-        sdp_pose, status, vars_proj, feas, gap = out.value
+        sdp_pose, status, status_local, vars_proj, feas, gap = out.value
         time = out.time - out.compile_time
 
         # save
         all_status[frame] = status
+        all_status_loc[frame] = status_local
         all_feas[frame] = feas
         all_gaps[frame] = gap
         all_times[frame] = time
@@ -88,7 +95,8 @@ for object_id in object_ids
         
         println("[$object_id] $frame: $status")
     end
-    status_dict[object_id] = Dict("all_status"=>all_status, "all_feas"=>all_feas, "all_gaps"=>all_gaps, 
+    status_dict[object_id] = Dict("all_status"=>all_status, "all_status_loc"=>all_status_loc, 
+        "all_feas"=>all_feas, "all_gaps"=>all_gaps, 
         "all_times"=>all_times, "R_ests"=>R_ests, "t_ests"=>t_ests)
 end
 

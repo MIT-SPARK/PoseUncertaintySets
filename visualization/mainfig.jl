@@ -8,8 +8,8 @@ using FileIO, MeshIO
 include("viz_utils.jl")
 
 
-frame = 352
-plot_mask = false
+frame = 1
+plot_mask = true
 
 begin
     object_id = 11
@@ -21,6 +21,9 @@ begin
 
     R_ests = status_dict[object_id]["R_ests"]
     t_ests = status_dict[object_id]["t_ests"]
+
+    cad = FileIO.load(cadpath*(@sprintf "obj_%06d.ply" object_id))
+    cad_m = GeometryBasics.Mesh(GeometryBasics.coordinates(cad)/1000, cad.faces)
 end
 
 

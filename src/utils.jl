@@ -1,6 +1,8 @@
 ## Utils for purse
 # Lorenzo Shaikewitz, 4/17/2025
 
+using LinearAlgebra
+
 ## Quadratic data struct
 # x'*H*x + 2c'*x + d
 struct Quadratic
@@ -190,4 +192,27 @@ function axang2rotm(ω, θ)
     end
     K = [0. -ω[3] ω[2]; ω[3] 0. -ω[1]; -ω[2] ω[1] 0.]
     R = I + sin(θ)*K + (1 - cos(θ))*(K*K)
+end
+
+"""
+    quat2rotm(q)
+
+Convert quaternion `[qw,qx,qy,qz]` to rotation matrix `R`.
+"""
+function quat2rotm(q)
+    R = [q[1]^2+q[2]^2-q[3]^2-q[4]^2  2*(q[2]*q[3]-q[1]*q[4])  2*(q[2]*q[4]+q[1]*q[3]);
+         2*(q[2]*q[3]+q[1]*q[4])  q[1]^2-q[2]^2+q[3]^2-q[4]^2  2*(q[3]*q[4]-q[1]*q[2]);
+         2*(q[2]*q[4]-q[1]*q[3])  2*(q[3]*q[4]+q[1]*q[2])  q[1]^2-q[2]^2-q[3]^2+q[4]^2]
+end
+
+"""
+    randrotation()
+    
+Generate uniformly random rotation matrix via quaternion sampling.
+"""
+function randrotation()
+    q = randn(4)
+    normalize!(q)
+    # convert to rotation matrix
+    R = quat2rotm(q)
 end

@@ -6,7 +6,7 @@ import GeometryBasics
 using FileIO, MeshIO
 
 plot_gt = false
-name = "est.mp4"
+name = "est2.mp4"
 fps = 15
 
 anim = @Plots.animate for frame = 1:num_frames

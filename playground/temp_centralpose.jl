@@ -5,7 +5,7 @@ include("../src/uncertaintyset.jl")
 include("../src/centralpose.jl")
 
 # Parameters
-object_id = 9
+object_id = 11
 
 analytic = false
 silent = false
@@ -19,7 +19,7 @@ img_names = all_data["img"]
 num_frames = length(img_names)
 
 
-frame = 1
+frame = 28
 
 r = all_data["radii"][frame][object_id] .+ 1e-3 # make sure 0 radii doesn't happen
 y = all_data["pixel_measurements"][frame][object_id]
@@ -72,14 +72,14 @@ append!(ineq, upperb .- margin) # ≥ 0
 
 # solve
 pop = [obj; ineq; eq]
-order = 1
+order = 2
 opt, sol, data = cs_tssos_first(pop, vars, order, numeq=length(eq), TS="MD", QUIET=silent, solution=true, LorenzoOverride=true)
 sdp_sol,gap,data.flag = TSSOS.approx_sol(opt, data.moment, data.n, data.cliques, data.cql, data.cliquesize, data.supp, data.coe, numeq=data.numeq, tol=data.tol)
 
 sdp_sol_rounded = sdp_sol
 sdp_sol_rounded[end-3-9+1:end-3] = vec(project2SO3(reshape(sdp_sol[end-3-9+1:end-3],3,3)))
 
-time123=@timed sol, refine_status = local_refine_tssos(opt, data; QUIET=silent, startpoint=sdp_sol_rounded)
+time123=@timed sol, refine_status, gap = local_refine_tssos(opt, data; QUIET=silent, startpoint=sdp_sol_rounded)
 
 time321=@timed begin
     start = sdp_sol_rounded
@@ -141,7 +141,7 @@ p, d, v, g = (R_est, t_est), data.SDP_status, vars_proj, gap
 # ------------------------
 
 
-gt = all_data["gt_poses"][frame][5]
+gt = all_data["gt_poses"][frame][object_id]
 R_gt = project2SO3(gt[1])
 t_gt = gt[2] / 1000. # [m]
 R_est = p[1]
