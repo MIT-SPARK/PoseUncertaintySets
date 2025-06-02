@@ -2,6 +2,11 @@
 # run sample first
 # Lorenzo Shaikewitz, 4/30/2025
 
+# ellipse_dict = deserialize("ellipse10_fromlinf")
+# H = ellipse_dict[9]["all_H"][frame]
+# H_t = ellipse_dict[9]["all_H_ts"][frame]
+# center = [vec(R_center); t_center]
+
 # check against the samples
 cover_both = zeros(Bool, size(poses,1))
 cover_t = zeros(Bool, size(poses,1))
@@ -67,6 +72,11 @@ function generate_ellipse(A, c, num_points=100)
     return surf
 end
 
+# remove duplicates
+# i = unique(i -> surf[1:2,i], eachindex(eachcol(surf)))
+
+
+
 Plots.plot([center[10]],[center[11]],[center[12]], seriestype=:scatter, label="center")
 surf = generate_ellipse(H[10:12,10:12], center[10:12])
 Plots.scatter!([0],[0],[0],label="camera")
@@ -74,10 +84,11 @@ Plots.plot!(eachrow(good_centers)...,seriestype=:scatter,zcolor=good_margins, co
 p1 = Plots.scatter3d!(surf[1,:], surf[2,:], surf[3,:], label="Ellipse", xlabel="X", ylabel="Y", zlabel="Z", title="Constant Rotation")
 
 Plots.plot([center[10]],[center[11]],[center[12]], seriestype=:scatter, label="center")
-surf = generate_ellipse(H_t, center[10:12])
+surf = generate_ellipse(H_t, center[10:12], 100)
 Plots.scatter!([0],[0],[0],label="camera")
 Plots.plot!(eachrow(good_centers)...,seriestype=:scatter,zcolor=good_margins, color=:blues, label="samples")
-p2 = Plots.scatter3d!(surf[1,:], surf[2,:], surf[3,:], label="Ellipse", xlabel="X", ylabel="Y", zlabel="Z", title="Projected")
+p2 = Plots.scatter3d!(surf[1,:], surf[2,:], surf[3,:], msw=0., alpha = 0.4)
+Plots.plot!(label="Ellipse", xlabel="X", ylabel="Y", zlabel="Z", title="Projected")
 
 
 ## ELLIPSES in rotation space

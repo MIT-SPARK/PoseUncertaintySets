@@ -8,6 +8,7 @@ using JuMP
 # TODO: move to module
 include("../src/uncertaintyset.jl")
 include("../src/maxmargin.jl")
+include("../src/centralpose.jl")
 
 # Parameters
 object_id = 9
@@ -19,7 +20,7 @@ silent = true
 
 # Load data
 cadpath = "./data/lmo/models_eval/"
-datapath = "./data/lmo/l2.dat"
+datapath = "./data/lmo/linf_01_real.dat"
 all_data = deserialize(datapath)
 camK = all_data["camK"]
 img_names = all_data["img"]
@@ -39,25 +40,28 @@ q_eqs = SO3_constraints()
 
 # grid size
 grid_size = 0.01 # [m]
-max_offset = 0.1 # [m]
+max_offset = 0.15 # [m]
 pts_per_axis = Int(round(max_offset/grid_size))
 
 # find center
-sdp_pose, status, data, model = center_l2(q_front, q_backproj, q_eqs; analytic=analytic, lowerb=lowerb, upperb=upperb*r, silent=silent)
+# sdp_pose, status, data, model = center_l2(q_front, q_backproj, q_eqs; analytic=analytic, lowerb=lowerb, upperb=upperb*r, silent=silent)
+sdp_pose, status, status_local, vars_proj, feas, gap = centralpose_percent_linf(y, r, b, camK; lowerb=lowerb, upperb=upperb, silent=silent)
 
-# local refinement + gap
-tight = data[1]
-vars_proj = data[3]
-if tight
-    gap = 0.
-    est_pose = sdp_pose
-else
-    est_pose, loc_status, vars_proj, gap = local_refine(q_front, q_backproj, q_eqs, data; analytic=analytic, lowerb=lowerb, upperb=upperb*r, silent=silent)
-end
+# # local refinement + gap
+# tight = data[1]
+# vars_proj = data[3]
+# if tight
+#     gap = 0.
+#     est_pose = sdp_pose
+# else
+#     est_pose, loc_status, vars_proj, gap = local_refine(q_front, q_backproj, q_eqs, data; analytic=analytic, lowerb=lowerb, upperb=upperb*r, silent=silent)
+# end
+
+R_center = project2SO3(sdp_pose[1])
+t_center = sdp_pose[2]
 
 ## Sample
 # build grid
-t_center = t_ests[frame]
 tmin = t_center .- max_offset
 tmax = t_center .+ max_offset
 ranges = LinRange.(tmin, tmax, pts_per_axis)

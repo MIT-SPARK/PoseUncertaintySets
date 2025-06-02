@@ -55,7 +55,7 @@ function angular_bounds(center, H; silent=false, order=2)
         pop = [obj; ineq; eq]
         opt, sol, data = cs_tssos_first(pop, vars, order, numeq=length(eq), TS="MD", QUIET=silent, solution=true, LorenzoOverride=true)
         sdp_sol,gap,data.flag = TSSOS.approx_sol(opt, data.moment, data.n, data.cliques, data.cql, data.cliquesize, data.supp, data.coe, numeq=data.numeq, tol=data.tol)
-        sol, refine_status = local_refine_tssos(opt, data; QUIET=silent, startpoint=sdp_sol)
+        sol, refine_status, gap = local_refine_tssos(opt, data; QUIET=silent, startpoint=sdp_sol)
 
         if !silent
             println("SDP status: $(data.SDP_status)")

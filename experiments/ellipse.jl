@@ -7,6 +7,8 @@
 using Serialization
 using MosekTools
 
+using JuMP, Printf
+
 # TODO: move to module
 include("../src/uncertaintyset.jl")
 include("../src/slemma.jl")
@@ -15,7 +17,7 @@ include("../src/slemma.jl")
 # object_id = 9
 
 silent = true
-savename = "ellipse10_fromlinf"
+savename = "data/ellipse40_from_linf.dat"
 
 # Load data
 # datapath = "./data/lmo/l2_01_real.dat"
@@ -25,7 +27,6 @@ savename = "ellipse10_fromlinf"
 # num_frames = length(img_names)
 
 begin
-    using Serialization, JuMP, Printf
     datafile = "linf_01_percent01"
     out = deserialize(datafile)
     println("***********$datafile************")
@@ -39,6 +40,8 @@ begin
     img_names = all_data["img"]
     num_frames = length(img_names)
 end
+
+println(datapath)
 
 
 ellipse_dict = Dict()
@@ -117,10 +120,15 @@ end
 
 serialize(savename, ellipse_dict)
 
+# ellipse_dict = deserialize("ellipse10_fromlinf")
+
+
 trans_principal_axes_allobj = zeros(Float64, 3, 0)
 trans_principal_axes_fake_allobj = zeros(Float64, 3, 0)
 all_feas_allobj = []
+all_times_ellipse_allobj = []
 for (object_id, val) in ellipse_dict
+    global trans_principal_axes_allobj, trans_principal_axes_fake_allobj
     if object_id == 10
         continue
     end
@@ -129,6 +137,7 @@ for (object_id, val) in ellipse_dict
     trans_principal_axes_fake = val["trans_principal_axes_fake"]
 
     append!(all_feas_allobj, all_feas)
+    append!(all_times_ellipse_allobj, val["all_times_ellipse"])
     trans_principal_axes_allobj = [trans_principal_axes_allobj trans_principal_axes]
     trans_principal_axes_fake_allobj = [trans_principal_axes_fake_allobj trans_principal_axes_fake]
 end
@@ -145,4 +154,12 @@ p1=Plots.plot!(xscale=:log10, ylabel="CDF", xlabel="Error Bound (m)")
 Plots.plot(sort(trans_principal_axes_allobj[1,all_feas_allobj.==1]), (1:num_feas)./num_feas, label="1")
 Plots.plot!(sort(trans_principal_axes_allobj[2,all_feas_allobj.==1]), (1:num_feas)./num_feas, label="2")
 Plots.plot!(sort(trans_principal_axes_allobj[3,all_feas_allobj.==1]), (1:num_feas)./num_feas, label="3")
-p2=Plots.plot!(xscale=:log10, xticks=[1e-5, 1e-1,1,10,100,1000], ylabel="CDF", xlabel="Error Bound (m)")
+p2=Plots.plot!(xscale=:log10, ylabel="CDF", xlabel="Error Bound (m)")
+
+
+# to match Hank's plots:
+# Plots.plot!(p2, ylim=[0,1], yticks=[0,0.2,0.4,0.6,0.8,1], xticks=[1,10,100], xlim=[0.4,100], xscale=:log10)
+# Plots.plot!(p2, ylim=[0,1], yticks=[0,0.2,0.4,0.6,0.8,1],  xlim=[1e-8,100], xscale=:log10, fontfamily="Helvetica")
+Plots.plot!(p2, ylim=[0,1], yticks=[0,0.2,0.4,0.6,0.8,1], xticks=[1e-5,1e-4,1e-3,1e-2,1e-1,1], xlim=[1e-6,2000], xscale=:log10)
+
+# mean(all_times_ellipse_allobj[all_feas_allobj .!= -1])

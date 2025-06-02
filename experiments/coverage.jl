@@ -9,11 +9,11 @@ using Printf
 include("../src/uncertaintyset.jl")
 
 # PARAMETERS
-l2 = true # alt is linf
-α = 0.01
-real_cal = !true
-exclude_bop200 = !true
-object_ids = [1,5,6,8,9,10,11,12]
+l2 = !true # alt is linf
+α = 0.4
+real_cal = !false
+exclude_bop200 = false
+object_ids = [1,5,6,9,8,10,11,12]
 
 # load data
 datapath = @sprintf "./data/lmo/l%s_%02d%s.dat" (l2 ? "2" : "inf") Int(α*10) (real_cal ? "_real" : "")

@@ -8,7 +8,7 @@ include("../src/uncertaintyset.jl")
 include("../src/centralpose.jl")
 
 # Parameters
-object_id = 1
+object_id = 9
 
 analytic = false
 lowerb = nothing #-10 # decrease to get more feasible frames at cost of runtime
@@ -31,7 +31,7 @@ y = all_data["pixel_measurements"][frame][object_id]
 b = all_data["canonical_kpts"][frame][object_id]
 
 # p, d, v, f, g = centralpose_l2(y, r, b, camK; upperb=0.7*r, lowerb=-0.9*r)
-# p, d, v, f, g = centralpose_percent_l2(y, r, b, camK; lowerb=0.1, upperb=2)
+# p, d, v, f, g = centralpose_percent_l2(y, r, b, camK; lowerb=0.01, upperb=2)
 # these two give almost the same result;
 # percent gives faster results but not tight, regular is tight but 2x slower
 # put regular in paper, percent version in appendix
@@ -39,6 +39,7 @@ b = all_data["canonical_kpts"][frame][object_id]
 # p, d, v, f, g = centralpose_linf(y, r, b, camK; upperb=0.9*r, lowerb=-0.9*r)
 # p, d, v, f, g = centralpose_percent_linf(y, r, b, camK; lowerb=0.05, upperb=2)
 p, d, v, f, g = centralpose_percent_linf_LOCAL(y, r, b, camK; lowerb=0.01, upperb=2)
+# p, d, v, f, g = centralpose_percent_both(y, r, b, camK; lowerb=0.01, upperb=2)
 
 gt = all_data["gt_poses"][frame][object_id]
 R_gt = project2SO3(gt[1])

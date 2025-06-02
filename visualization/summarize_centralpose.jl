@@ -13,7 +13,7 @@ include("../src/utils.jl")
 # to load data
 begin
     using Serialization, JuMP, Printf
-    datafile = "linf_01_percent01"
+    datafile = "maxmargin_l2_04_real"
     out = deserialize(datafile)
     println("***********$datafile************")
     status_dict = out["status"]
@@ -31,6 +31,8 @@ cadpath = "./data/lmo/models_eval/" # _eval
 cadnames = Dict(1=>"ape", 5=>"can", 6=>"cat", 8=>"driller", 9=>"duck", 10=>"eggbox", 11=>"glue", 12=>"holepuncher")
 
 println(datapath)
+
+object_ids = [1,5,6,9,8,10,11,12]
 
 all_proj_errors = Dict()
 for object_id in object_ids
@@ -125,3 +127,28 @@ printstyled("Correct proj errors (px):",underline=true)
 
 printstyled("Mean proj errors (px):",underline=true)
 @printf " %.2f%% under 5 px\n" mean(mean_projs)*100
+
+# feasibility, tightness, times
+feas_count = 0
+tight_count = 0
+times = []
+visible_count = 0
+for object_id in object_ids
+    all_status = status_dict[object_id]["all_status"]
+    all_feas = status_dict[object_id]["all_feas"]
+    all_gaps = status_dict[object_id]["all_gaps"]
+    all_times = status_dict[object_id]["all_times"]
+
+    R_ests = status_dict[object_id]["R_ests"]
+    t_ests = status_dict[object_id]["t_ests"]
+
+
+    feas_count += sum(all_feas .== 1)
+    tight_count += sum(all_gaps[all_feas .!= -1] .< 1e-3)
+    visible_count += sum(all_feas .!= -1)
+    times = [times; all_times[all_feas .!= -1]]
+end
+
+@printf "All feasibile: %.2f%%\n" feas_count / visible_count * 100
+@printf "All tight: %.2f%%\n" tight_count / visible_count * 100
+@printf "All times: %.2f ms\n" mean(times)*1000

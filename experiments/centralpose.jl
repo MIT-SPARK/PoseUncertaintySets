@@ -10,16 +10,15 @@ include("../src/centralpose.jl")
 # PARAMETERS
 l2 = !true # alt is linf
 α = 0.4
-real_cal = !true
+real_cal = true
 exclude_bop200 = false
 silent = true
 
-percent = true
+percent = !true
 lowerb = 0.01 # -0.9
 upperb = 10 # 0.7
-double_local = false
 params = Params(l2, α, real_cal, percent, lowerb, upperb)
-savename = "linf_04_percent01_syn"
+savename = "data/poselinf_40_local01.dat"
 
 # object_id = 9
 object_ids = [1,5,6,8,9,10,11,12]
@@ -34,7 +33,7 @@ num_frames = length(img_names)
 
 println(datapath)
 println(lowerb)
-println("-------------")
+println("---------------")
 
 calibrated_frames = open("./data/lmo/valid_test_frames.txt") do f
     readlines(f) |> (s-> parse.(Int,s))
@@ -66,18 +65,20 @@ for object_id in object_ids
         b = all_data["canonical_kpts"][frame][object_id]
 
         # find center
+        # out = @timed centralpose_percent_linf_LOCAL(y, r, b, camK; lowerb=lowerb, upperb=upperb, silent=silent)
         if l2
             if percent
                 out = @timed centralpose_percent_l2(y, r, b, camK; lowerb=lowerb, upperb=upperb, silent=silent)
             else
-                out = @timed centralpose_l2(y, r, b, camK; upperb=upperb*r, lowerb=lowerb*r, silent=silent)
+                # out = @timed centralpose_l2(y, r, b, camK; upperb=upperb*r, lowerb=lowerb*r, silent=silent)
+                out = @timed centralpose_percent_l2_LOCAL(y, r, b, camK; lowerb=lowerb, upperb=upperb, silent=silent)
             end
         else
             if percent
-                out = @timed centralpose_percent_linf(y, r, b, camK; lowerb=lowerb, upperb=upperb, silent=silent, double_local=double_local)
-                # out = @timed centralpose_percent_linf_LOCAL(y, r, b, camK; lowerb=lowerb, upperb=upperb, silent=silent)
+                out = @timed centralpose_percent_linf(y, r, b, camK; lowerb=lowerb, upperb=upperb, silent=silent)
             else
-                out = @timed centralpose_linf(y, r, b, camK; upperb=upperb*r, lowerb=lowerb*r, silent=silent)
+                # out = @timed centralpose_linf(y, r, b, camK; upperb=upperb*r, lowerb=lowerb*r, silent=silent)
+                out = @timed centralpose_percent_linf_LOCAL(y, r, b, camK; lowerb=lowerb, upperb=upperb, silent=silent)
             end
         end
         sdp_pose, status, status_local, vars_proj, feas, gap = out.value
