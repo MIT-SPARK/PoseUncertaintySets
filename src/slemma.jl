@@ -58,7 +58,12 @@ function bounding_ellipse(center, q_front, q_backproj, q_eqs; solver=Clarabel.Op
     # build and constrain M
     # q0 = x'*H0*x + 2(-H0*c)'*x + c'*H0*c <= 1
     M = -[H0  -H0*center;  (-H0*center)'  center'*H0*center-1]
-    for (i,q) in enumerate(q_ineqs)
+    for (i_bp,q) in enumerate(q_backproj)
+        i = i_bp
+        M += [λ[i]*q.H  λ[i]*q.c;  λ[i]*q.c'  λ[i]*q.d]
+    end
+    for (i_fc,q) in enumerate(q_front)
+        i = i_fc + length(q_backproj)
         M += [λ[i]*q.H  λ[i]*q.c;  λ[i]*q.c'  λ[i]*q.d]
     end
     for (i,q) in enumerate(q_eqs)

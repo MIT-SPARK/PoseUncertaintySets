@@ -2,6 +2,9 @@
 # Lorenzo Shaikewitz 4/29/2025
 
 using Serialization
+using Printf
+using LinearAlgebra
+using JuMP, Clarabel, MosekTools
 
 # TODO: move to module
 include("../src/uncertaintyset.jl")
@@ -59,15 +62,81 @@ end
 
 println("----------S LEMMA----------")
 center = [vec(est_pose[1]); est_pose[2]]
-H, status = bounding_ellipse(center, q_front, q_backproj, q_eqs; solver=Mosek.Optimizer, silent=true)
 
-println("Solved with status: $status")
+println("----------PRIMAL----------")
+# JuMP model
+model = Model(Mosek.Optimizer)
+@variable(model, X[1:13,1:13] ∈ PSDCone())
+
+# objective
+W = [I -center; -center' center'*center]
+obj = tr(W'*X)
+@objective(model, Max, obj)
+
+# constraints
+for (i,q) in enumerate(q_backproj)
+    @constraint(model, tr([q.H  q.c;  q.c'  q.d]'*X) <= 0)
+end
+for (i,q) in enumerate(q_front)
+    @constraint(model, tr([q.H  q.c;  q.c'  q.d]'*X) <= 0)
+end
+for (i,q) in enumerate(q_eqs)
+    @constraint(model, tr([q.H  q.c;  q.c'  q.d]'*X) == 0)
+end
+@constraint(model, tr(X) == 13)
+# @constraint(model, X[13,13] == 1)
+
+# tightening constraints?
+# @constraint(model, tr([diagm(ones(12)) zeros(12); zeros(12)' -3.5]'*X) <= 0)
+
+# Solve with JuMP
+optimize!(model)
+
+if !silent && !is_solved_and_feasible(model)
+    printstyled("Solver did not find an optimal solution!\n",color=:red)
+end
+
+println("Solved with status: $(termination_status(model))")
+println("Primal value: $(value(obj))")
 
 
-## Project ellipse to translations
-P = [zeros(3,9) diagm(ones(3))]
-H_t = inv(P*inv(H)*P')
+# println("----------DUAL----------")
+# # JuMP model
+# model = Model(Mosek.Optimizer)
+# @variable(model, η)
+# @variable(model, λ[1:(length(q_backproj) + length(q_front))] .>= 0)
+# @variable(model, μ[1:length(q_eqs)])
 
-# project to SO(3)?
-P = [diagm(ones(9)) zeros(9,3)]
-H_r = inv(P*inv(H)*P')
+# # objective
+# n = 13
+# obj = n*η
+# @objective(model, Min, obj)
+
+# # constraints
+# W = [I -center; -center' center'*center]
+# Q = W - η*diagm(ones(n))
+# for (i_bp,q) in enumerate(q_backproj)
+#     global Q
+#     i = i_bp
+#     Q -= λ[i]*[q.H  q.c;  q.c'  q.d]
+# end
+# for (i_fr,q) in enumerate(q_front)
+#     global Q
+#     i = i_fr + length(q_backproj)
+#     Q -= λ[i]*[q.H  q.c;  q.c'  q.d]
+# end
+# for (i,q) in enumerate(q_eqs)
+#     global Q
+#     Q -= μ[i]*[q.H  q.c;  q.c'  q.d]
+# end
+# @constraint(model, -Q >= 0, PSDCone())
+
+# # Solve with JuMP
+# optimize!(model)
+
+# if !silent && !is_solved_and_feasible(model)
+#     printstyled("Solver did not find an optimal solution!\n",color=:red)
+# end
+
+# println("Solved with status: $(termination_status(model))")
+# println("Dual value: $(value(obj))")

@@ -71,3 +71,37 @@ H_t = inv(P*inv(H)*P')
 # project to SO(3)?
 P = [diagm(ones(9)) zeros(9,3)]
 H_r = inv(P*inv(H)*P')
+
+
+using Plots
+
+function generate_ellipse(A, c, num_points=100)
+    # Eigenvalue decomposition of A
+    λ, V = eigen(Symmetric(A))
+        
+    # Generate points on unit sphere
+    u = LinRange(0, 2π, num_points)
+    v = LinRange(0, π, num_points)
+    x = zeros(num_points, num_points)
+    y = zeros(num_points, num_points)
+    z = zeros(num_points, num_points)
+    for (i,ui) in enumerate(u)
+        # Parametric equations of the unit sphere
+        x[:,i] = cos(ui)*sin.(v)
+        y[:,i] = sin(ui)*sin.(v)
+        z[:,i] = cos.(v)
+    end
+    sphere = [vec(x) vec(y) vec(z)]' # 3 x num_points^2
+
+    # Transform sphere to ellipsoid
+    axes_lengths = 1. ./ sqrt.(λ)
+    surf = V * diagm(axes_lengths) * sphere
+    surf .+= c
+    return surf
+end
+# plot
+Plots.plot([center[10]],[center[11]],[center[12]], seriestype=:scatter, label="center")
+surf = generate_ellipse(H_t, center[10:12], 100)
+Plots.scatter!([0],[0],[0],label="camera")
+p2 = Plots.scatter3d!(surf[1,:], surf[2,:], surf[3,:], msw=0., alpha = 1)
+Plots.plot!(label="Ellipse", xlabel="X", ylabel="Y", zlabel="Z", title="Projected")
