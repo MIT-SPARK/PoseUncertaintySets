@@ -185,7 +185,7 @@ append!(eq, R[1:3,2] .- cross(R[1:3,3],R[1:3,1]))
 
 # solve
 pop = [obj; ineq; eq]
-order = 1
+order = 2
 opt, sol, gap, data = cs_tssos_first(pop, vars, order, numeq=length(eq), TS="MD", QUIET=false, solution=true, refine=false)
 
 

@@ -114,49 +114,68 @@ optimize!(model)
 
 println("Solved with status: $(termination_status(model))")
 
-H0_val = value.(H0)
+H = value.(H0)
 
 
-# println("----------TSSOS----------")
-# using TSSOS, DynamicPolynomials
+## REFINEMENT
+println("----------TSSOS----------")
 
-# @polyvar R[1:3,1:3]
-# @polyvar t[1:3]
-# vars = [vec(R); t]
+for axis = 1:12
+    global H
 
-# # objective
-# W = [H0_val -H0_val*center; -center'*H0_val center'*H0_val*center]
-# obj = -[vars;1]'*W*[vars;1]
+    V = eigvecs(H)' # H = V'*diagm(λ)*V
+    λ = eigvals(H)
 
-# # constraints
-# # expr ≥ 0
-# ineq = zeros(Polynomial{DynamicPolynomials.Commutative{DynamicPolynomials.CreationOrder}, Graded{LexOrder}, Float64}, 0) 
-# # expr = 0
-# eq = zeros(Polynomial{DynamicPolynomials.Commutative{DynamicPolynomials.CreationOrder}, Graded{LexOrder}, Float64}, 0) 
+    using TSSOS, DynamicPolynomials
 
-# for (i,q) in enumerate(q_backproj)
-#     push!(ineq, -[vars;1]'*[q.H  q.c;  q.c'  q.d]*[vars;1])
-# end
-# for (i,q) in enumerate(q_front)
-#     push!(ineq, -[vars;1]'*[q.H  q.c;  q.c'  q.d]*[vars;1])
-# end
+    @polyvar R[1:3,1:3]
+    @polyvar t[1:3]
+    vars = [vec(R); t]
+    varsV = V*vars
+    centerV = V*center
 
-# # SO(3) constraints
-# append!(eq, vec(R'*R - I)) # O(3)
-# append!(eq, R[1:3,3] .- cross(R[1:3,1],R[1:3,2]))
-# append!(eq, R[1:3,1] .- cross(R[1:3,2],R[1:3,3]))
-# append!(eq, R[1:3,2] .- cross(R[1:3,3],R[1:3,1]))
+    # objective
+    obj = -(varsV[axis] - centerV[axis])^2
 
-# # solve
-# pop = [obj; ineq; eq]
-# order = 1
-# opt, sol, gap, data = cs_tssos_first(pop, vars, order, numeq=length(eq), TS="MD", QUIET=true, solution=true, refine=false)
-# Lorenzo: not sure what this TSSOS step is trying to do.
+    # constraints
+    # expr ≥ 0
+    ineq = zeros(Polynomial{DynamicPolynomials.Commutative{DynamicPolynomials.CreationOrder}, Graded{LexOrder}, Float64}, 0) 
+    # expr = 0
+    eq = zeros(Polynomial{DynamicPolynomials.Commutative{DynamicPolynomials.CreationOrder}, Graded{LexOrder}, Float64}, 0) 
+
+    # pretty sure these are equivalent to not doing the V thing
+    for (i,q) in enumerate(q_backproj)
+        push!(ineq, -[varsV;1]'*[V*q.H*V'  V*q.c;  (V*q.c)'  q.d]*[varsV;1])
+    end
+    for (i,q) in enumerate(q_front)
+        push!(ineq, -[varsV;1]'*[V*q.H*V'  V*q.c;  (V*q.c)'  q.d]*[varsV;1])
+    end
+
+    # SO(3) constraints
+    for (i,q) in enumerate(q_eqs)
+        push!(eq, [varsV;1]'*[V*q.H*V'  V*q.c;  (V*q.c)'  q.d]*[varsV;1])
+    end
+    # append!(eq, vec(R'*R - I)) # O(3)
+    # append!(eq, R[1:3,3] .- cross(R[1:3,1],R[1:3,2]))
+    # append!(eq, R[1:3,1] .- cross(R[1:3,2],R[1:3,3]))
+    # append!(eq, R[1:3,2] .- cross(R[1:3,3],R[1:3,1]))
+
+    # solve
+    pop = [obj; ineq; eq]
+    order = 1
+    opt, sol, gap, data = cs_tssos_first(pop, vars, order, numeq=length(eq), TS="MD", QUIET=false, solution=true, refine=false)
+
+    γ = -obj(vars=>sol)
+    λ[axis] = (length(λ)-2)/γ
+    H = V'*diagm(λ)*V
+end
+
+
 
 ### PLOT
 
 P = [zeros(3,9) diagm(ones(3))]
-H_t = inv(P*inv(H0_val)*P')
+H_t = inv(P*inv(H)*P')
 
 using Plots
 
