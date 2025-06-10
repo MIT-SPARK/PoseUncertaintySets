@@ -13,13 +13,14 @@ include("../src/utils.jl")
 # to load data
 begin
     using Serialization, JuMP, Printf
-    datafile = "maxmargin_l2_04_real"
+    datafile = "maxmargin_l2_01_real"
     out = deserialize(datafile)
     println("***********$datafile************")
     status_dict = out["status"]
     object_ids = sort(Int.(keys(status_dict)))
-    params = out["params"]
-    datapath = @sprintf "./data/lmo/l%s_%02d%s.dat" (params.l2 ? "2" : "inf") Int(params.α*10) (params.real_cal ? "_real" : "")
+    # params = out["params"]
+    # datapath = @sprintf "./data/lmo/l%s_%02d%s.dat" (params.l2 ? "2" : "inf") Int(params.α*10) (params.real_cal ? "_real" : "")
+    datapath = "./data/lmo/l2_01_real.dat"
 
     all_data = deserialize(datapath)
     camK = all_data["camK"]

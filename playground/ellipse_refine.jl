@@ -63,9 +63,9 @@ end
 println("----------S LEMMA----------")
 center = [vec(est_pose[1]); est_pose[2]]
 
-model = Model(Clarabel.Optimizer)
-# set_silent(model)
-@variable(model, r2)
+model = Model(Mosek.Optimizer)
+set_silent(model)
+@variable(model, log_det_H0)
 @variable(model, λ[1:(length(q_backproj) + length(q_front))] .>= 0)
 @variable(model, η[1:length(q_eqs)])
 
@@ -84,23 +84,26 @@ model = Model(Clarabel.Optimizer)
 
 # objective: max logdet(H0)
 # use auxillary variable
-@objective(model, Min, r2)
+@objective(model, Max, log_det_H0)
+@constraint(model, [log_det_H0; 1; vec(H0)] in MOI.LogDetConeSquare(12))
 
 # build and constrain M
 # q0 = x'*H0*x + 2(-H0*c)'*x + c'*H0*c <= 1
-H0 = diagm(ones(12))
-M = -[H0  -H0*center;  (-H0*center)'  center'*H0*center-r2]
+M = -[H0  (-H0*center);  (-H0*center)'  center'*H0*center-1]
 for (i_bp,q) in enumerate(q_backproj)
+    # quadratic only
     global M
     i = i_bp
     M += [λ[i]*q.H  λ[i]*q.c;  λ[i]*q.c'  λ[i]*q.d]
 end
 for (i_fc,q) in enumerate(q_front)
+    # linear only
     global M
     i = i_fc + length(q_backproj)
     M += [λ[i]*q.H  λ[i]*q.c;  λ[i]*q.c'  λ[i]*q.d]
 end
 for (i,q) in enumerate(q_eqs)
+    # quadratic and linear
     global M
     M += [η[i]*q.H  η[i]*q.c;  η[i]*q.c'  η[i]*q.d]
 end
@@ -110,129 +113,50 @@ end
 optimize!(model)
 
 println("Solved with status: $(termination_status(model))")
-println("Radius: $(value(r2))")
 
-r2_val = value(r2)
-
-
-println("----------PRIMAL----------")
-# JuMP model
-model = Model(Clarabel.Optimizer)
-@variable(model, X[1:13,1:13] ∈ PSDCone())
-set_silent(model)
-
-# objective
-W = [I -center; -center' center'*center]
-obj = tr(W'*X)
-@objective(model, Max, obj)
-
-# constraints
-for (i,q) in enumerate(q_backproj)
-    @constraint(model, tr([q.H  q.c;  q.c'  q.d]'*X) <= 0)
-end
-for (i,q) in enumerate(q_front)
-    @constraint(model, tr([q.H  q.c;  q.c'  q.d]'*X) <= 0)
-end
-for (i,q) in enumerate(q_eqs)
-    @constraint(model, tr([q.H  q.c;  q.c'  q.d]'*X) == 0)
-end
-@constraint(model, tr(X) == 13)
-# @constraint(model, X[13,13] == 1)
-
-# tightening constraints?
-# @constraint(model, tr([diagm(ones(12)) zeros(12); zeros(12)' -3.5]'*X) <= 0)
-
-# Solve with JuMP
-optimize!(model)
-
-if !silent && !is_solved_and_feasible(model)
-    printstyled("Solver did not find an optimal solution!\n",color=:red)
-end
-
-println("Solved with status: $(termination_status(model))")
-println("Primal value: $(value(obj))")
+H0_val = value.(H0)
 
 
+# println("----------TSSOS----------")
+# using TSSOS, DynamicPolynomials
 
-println("----------TSSOS----------")
-using TSSOS, DynamicPolynomials
-
-@polyvar R[1:3,1:3]
-@polyvar t[1:3]
-vars = [vec(R); t]
-
-# objective
-obj = -[vars;1]'*W*[vars;1]
-
-# constraints
-# expr ≥ 0
-ineq = zeros(Polynomial{DynamicPolynomials.Commutative{DynamicPolynomials.CreationOrder}, Graded{LexOrder}, Float64}, 0) 
-# expr = 0
-eq = zeros(Polynomial{DynamicPolynomials.Commutative{DynamicPolynomials.CreationOrder}, Graded{LexOrder}, Float64}, 0) 
-
-for (i,q) in enumerate(q_backproj)
-    push!(ineq, -[vars;1]'*[q.H  q.c;  q.c'  q.d]*[vars;1])
-end
-for (i,q) in enumerate(q_front)
-    push!(ineq, -[vars;1]'*[q.H  q.c;  q.c'  q.d]*[vars;1])
-end
-
-# SO(3) constraints
-append!(eq, vec(R'*R - I)) # O(3)
-append!(eq, R[1:3,3] .- cross(R[1:3,1],R[1:3,2]))
-append!(eq, R[1:3,1] .- cross(R[1:3,2],R[1:3,3]))
-append!(eq, R[1:3,2] .- cross(R[1:3,3],R[1:3,1]))
-
-# solve
-pop = [obj; ineq; eq]
-order = 1
-opt, sol, gap, data = cs_tssos_first(pop, vars, order, numeq=length(eq), TS="MD", QUIET=false, solution=true, refine=false)
-
-
-
-# println("----------DUAL----------")
-# # JuMP model
-# model = Model(Mosek.Optimizer)
-# @variable(model, η)
-# @variable(model, λ[1:(length(q_backproj) + length(q_front))] .>= 0)
-# @variable(model, μ[1:length(q_eqs)])
+# @polyvar R[1:3,1:3]
+# @polyvar t[1:3]
+# vars = [vec(R); t]
 
 # # objective
-# n = 13
-# obj = n*η
-# @objective(model, Min, obj)
+# W = [H0_val -H0_val*center; -center'*H0_val center'*H0_val*center]
+# obj = -[vars;1]'*W*[vars;1]
 
 # # constraints
-# W = [I -center; -center' center'*center]
-# Q = W - η*diagm(ones(n))
-# for (i_bp,q) in enumerate(q_backproj)
-#     global Q
-#     i = i_bp
-#     Q -= λ[i]*[q.H  q.c;  q.c'  q.d]
-# end
-# for (i_fr,q) in enumerate(q_front)
-#     global Q
-#     i = i_fr + length(q_backproj)
-#     Q -= λ[i]*[q.H  q.c;  q.c'  q.d]
-# end
-# for (i,q) in enumerate(q_eqs)
-#     global Q
-#     Q -= μ[i]*[q.H  q.c;  q.c'  q.d]
-# end
-# @constraint(model, -Q >= 0, PSDCone())
+# # expr ≥ 0
+# ineq = zeros(Polynomial{DynamicPolynomials.Commutative{DynamicPolynomials.CreationOrder}, Graded{LexOrder}, Float64}, 0) 
+# # expr = 0
+# eq = zeros(Polynomial{DynamicPolynomials.Commutative{DynamicPolynomials.CreationOrder}, Graded{LexOrder}, Float64}, 0) 
 
-# # Solve with JuMP
-# optimize!(model)
-
-# if !silent && !is_solved_and_feasible(model)
-#     printstyled("Solver did not find an optimal solution!\n",color=:red)
+# for (i,q) in enumerate(q_backproj)
+#     push!(ineq, -[vars;1]'*[q.H  q.c;  q.c'  q.d]*[vars;1])
+# end
+# for (i,q) in enumerate(q_front)
+#     push!(ineq, -[vars;1]'*[q.H  q.c;  q.c'  q.d]*[vars;1])
 # end
 
-# println("Solved with status: $(termination_status(model))")
-# println("Dual value: $(value(obj))")
+# # SO(3) constraints
+# append!(eq, vec(R'*R - I)) # O(3)
+# append!(eq, R[1:3,3] .- cross(R[1:3,1],R[1:3,2]))
+# append!(eq, R[1:3,1] .- cross(R[1:3,2],R[1:3,3]))
+# append!(eq, R[1:3,2] .- cross(R[1:3,3],R[1:3,1]))
 
+# # solve
+# pop = [obj; ineq; eq]
+# order = 1
+# opt, sol, gap, data = cs_tssos_first(pop, vars, order, numeq=length(eq), TS="MD", QUIET=true, solution=true, refine=false)
+# Lorenzo: not sure what this TSSOS step is trying to do.
 
 ### PLOT
+
+P = [zeros(3,9) diagm(ones(3))]
+H_t = inv(P*inv(H0_val)*P')
 
 using Plots
 
@@ -262,7 +186,8 @@ function generate_ellipse(A, c, num_points=100)
 end
 # plot
 Plots.plot([center[10]],[center[11]],[center[12]], seriestype=:scatter, label="center")
-surf = generate_ellipse(diagm(ones(3)/-opt), center[10:12], 100)
+# surf = generate_ellipse(diagm(ones(3)/-opt), center[10:12], 100)
+surf = generate_ellipse(H_t, center[10:12], 100)
 Plots.scatter!([0],[0],[0],label="camera")
 p2 = Plots.scatter3d!(surf[1,:], surf[2,:], surf[3,:])#, msw=0., alpha = 1)
 Plots.plot!(label="Ellipse", xlabel="X", ylabel="Y", zlabel="Z", title="Projected")
