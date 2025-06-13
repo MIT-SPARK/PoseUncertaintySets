@@ -10,6 +10,7 @@ using GeometryBasics
 using FileIO, MeshIO
 
 import JSON
+import Images, Plots
 
 # import Plots
 
@@ -32,5 +33,7 @@ export dataset_pose_est, calc_pose_errors, calc_projection_errors
 
 include("visualization/plot_ellipse.jl")
 export ellipse_to_surf
+include("visualization/image_tools.jl")
+export plot_image, plot_keypoints!, plot_3d_keypoints!, plot_mask!, plot_outline!
 
 end # module PoseUncertaintySets

@@ -1,7 +1,6 @@
 ## Uncertainty bounds on a single frame
 # Lorenzo Shaikewitz, 6/11/2025
 
-using Serialization
 using LinearAlgebra
 using Printf
 using Clarabel, MosekTools
