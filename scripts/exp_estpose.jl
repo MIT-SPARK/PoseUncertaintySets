@@ -10,12 +10,11 @@ using PoseUncertaintySets
 
 # parameters
 save_path = "../data/lmo/results_l2_01_real.dat"
-keypoints_file = "../data/lmo/l2_01_real.dat"
 cadpath = "../data/lmo/models_eval/"
 object_ids = [1,5,6,9,8,10,11,12]
 # cadnames = Dict(1=>"ape", 5=>"can", 6=>"cat", 8=>"driller", 9=>"duck", 10=>"eggbox", 11=>"glue", 12=>"holepuncher")
 
-keypoints_data = deserialize(keypoints_file)
+keypoint_data, gt = load_keypoint_data(calibrate_l2)
 
 # GAUSSIAN, ORDER 1
 println("\nStarting Gaussian Order 1...")
@@ -24,18 +23,17 @@ solns_g1 = Dict()
 for object_id in object_ids
     println("\n------------$object_id------------")
     # solve!
-    Rs, ts, gaps, times, statuses = dataset_pose_est(keypoints_data, object_id, gaussianpose; silent=true, order=1)
+    Rs, ts, gaps, times, statuses = dataset_pose_est(keypoint_data, object_id, gaussianpose; silent=true, order=1)
     # errors
-    R_errs, t_errs = calc_pose_errors(Rs, ts, keypoints_data, object_id)
-    proj_errs = calc_projection_errors(Rs, ts, keypoints_data, object_id, cadpath)
+    R_errs, t_errs = calc_pose_errors(Rs, ts, gt, object_id)
+    proj_errs = calc_projection_errors(Rs, ts, keypoint_data, gt, object_id, cadpath)
     # save
-    errs_obj = DataFrame(R=R_errs, t=t_errs, proj=proj_errs, gap=gaps, time=times, frame=1:size(R_errs,1), id=object_id)
+    errs_obj = DataFrame(R=collect(values(R_errs)), t=collect(values(t_errs)), proj=collect(values(proj_errs)), gap=collect(values(gaps)), time=collect(values(times)), frame=keys(R_errs), id=object_id)
     global errs_g1, solns_g1
     errs_g1 = [errs_g1;errs_obj]
     solns_g1[object_id] = (Rs, ts)
 end
 println("")
-error("hi")
 
 # GAUSSIAN, ORDER 2
 println("\nStarting Gaussian Order 2...")
@@ -44,12 +42,12 @@ solns_g2 = Dict()
 for object_id in object_ids
     println("\n------------$object_id------------")
     # solve!
-    Rs, ts, gaps, times, statuses = dataset_pose_est(keypoints_data, object_id, gaussianpose; silent=true, order=2)
+    Rs, ts, gaps, times, statuses = dataset_pose_est(keypoint_data, object_id, gaussianpose; silent=true, order=2)
     # errors
-    R_errs, t_errs = calc_pose_errors(Rs, ts, keypoints_data, object_id)
-    proj_errs = calc_projection_errors(Rs, ts, keypoints_data, object_id, cadpath)
+    R_errs, t_errs = calc_pose_errors(Rs, ts, gt, object_id)
+    proj_errs = calc_projection_errors(Rs, ts, keypoint_data, gt, object_id, cadpath)
     # save
-    errs_obj = DataFrame(R=R_errs, t=t_errs, proj=proj_errs, gap=gaps, time=times, frame=1:size(R_errs,1), id=object_id)
+    errs_obj = DataFrame(R=collect(values(R_errs)), t=collect(values(t_errs)), proj=collect(values(proj_errs)), gap=collect(values(gaps)), time=collect(values(times)), frame=1:size(R_errs,1), id=object_id)
     global errs_g2, solns_g2
     errs_g2 = [errs_g2;errs_obj]
     solns_g2[object_id] = (Rs, ts)
@@ -63,12 +61,12 @@ solns_r = Dict()
 for object_id in object_ids
     println("\n------------$object_id------------")
     # solve!
-    Rs, ts, purse_emptys, times = dataset_pose_est(keypoints_data, object_id, ransagpose)
+    Rs, ts, purse_emptys, times = dataset_pose_est(keypoint_data, object_id, ransagpose)
     # errors
-    R_errs, t_errs = calc_pose_errors(Rs, ts, keypoints_data, object_id)
-    proj_errs = calc_projection_errors(Rs, ts, keypoints_data, object_id, cadpath)
+    R_errs, t_errs = calc_pose_errors(Rs, ts, gt, object_id)
+    proj_errs = calc_projection_errors(Rs, ts, keypoint_data, gt, object_id, cadpath)
     # save
-    errs_obj = DataFrame(R=R_errs, t=t_errs, proj=proj_errs, gap=purse_emptys, time=times, frame=1:size(R_errs,1), id=object_id)
+    errs_obj = DataFrame(R=collect(values(R_errs)), t=collect(values(t_errs)), proj=collect(values(proj_errs)), gap=collect(values(purse_emptys)), time=collect(values(times)), frame=1:size(R_errs,1), id=object_id)
     global errs_r, solns_r
     errs_r = [errs_r;errs_obj]
     solns_r[object_id] = (Rs, ts)

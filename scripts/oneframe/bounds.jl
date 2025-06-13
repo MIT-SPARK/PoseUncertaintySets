@@ -9,17 +9,22 @@ using Clarabel, MosekTools
 using PoseUncertaintySets
 using SimpleRotations
 
-keypoints_file = "../data/lmo/l2_01_real.dat"
 object_id = 9
 frame = 100
 
 ## Load data
-keypoints_data = deserialize(keypoints_file)
-camK = keypoints_data["camK"]
+keypoint_data, gt = load_keypoint_data(calibrate_l2)
+camK = keypoint_data["K"]
 
-r = keypoints_data["radii"][frame][object_id]
-y = keypoints_data["pixel_measurements"][frame][object_id]
-b = keypoints_data["canonical_kpts"][frame][object_id]
+r = keypoint_data["r"][frame][object_id]
+y = keypoint_data["y"][frame][object_id]
+b = keypoint_data["b"][object_id]
+
+# eliminate missing measurements
+y = y[1:2,r .>= 0]
+y = [y[1:2,:]; ones(size(y,2))']
+b = b[:, r .>= 0]
+r = r[r .>= 0]
 
 ## Pose estimate
 # R_est, t_est, purse_empty = ransagpose(r, y, b, camK)

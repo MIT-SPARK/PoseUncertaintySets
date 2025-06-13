@@ -18,7 +18,7 @@ using P3P
 
 # Files
 include("load_data.jl")
-export calibrate_l2
+export calibrate_l2, load_keypoint_data
 
 include("pose_estimation.jl")
 export gaussianpose, ransagpose

@@ -16,25 +16,35 @@ Run pose estimation using `method` on all frames given `keypoint_data` and `obje
 """
 function dataset_pose_est(keypoint_data, object_id, method; kwargs...)
     # setup
-    camK = keypoint_data["camK"]
-    num_frames = length(keypoint_data["radii"])
+    camK = keypoint_data["K"]
+    num_frames = length(keys(keypoint_data["r"]))
 
-    Rs = Vector{Any}(missing, num_frames)
-    ts = Vector{Any}(missing, num_frames)
-    gaps = Vector{Union{Float64, Missing}}(missing, num_frames)
-    times = Vector{Union{Float64, Missing}}(missing, num_frames)
-    extras = Vector{Any}(missing, num_frames)
+    Rs = Dict()
+    ts = Dict()
+    gaps = Dict()
+    times = Dict()
+    extras = Dict()
 
     println("Starting $num_frames frames...")
-    for frame = 1:num_frames
-        if !(object_id in keys(keypoint_data["radii"][frame]))
+    for frame in sort(collect(keys(keypoint_data["r"])))
+        if !(object_id in keys(keypoint_data["r"][frame]))
             continue
         end
 
         # frame-specific data
-        r = keypoint_data["radii"][frame][object_id]
-        y = keypoint_data["pixel_measurements"][frame][object_id]
-        b = keypoint_data["canonical_kpts"][frame][object_id]
+        r = keypoint_data["r"][frame][object_id]
+        y = keypoint_data["y"][frame][object_id]
+        b = keypoint_data["b"][object_id]
+
+        # eliminate missing measurements
+        y = y[1:2,r .>= 0]
+        y = [y[1:2,:]; ones(size(y,2))']
+        b = b[:, r .>= 0]
+        r = r[r .>= 0]
+
+        if length(r) < 3
+            continue
+        end
 
         # solve
         out = @timed method(r, y, b, camK; kwargs...)
@@ -62,18 +72,13 @@ end
 
 Compute angular error (degrees) and translation error (mm) of estimate.
 """
-function calc_pose_errors(Rs, ts, keypoints_data, object_id)
-    num_frames = length(keypoints_data["radii"])
-
-    R_errs = Vector{Union{Float64, Missing}}(missing, num_frames)
-    t_errs = Vector{Union{Float64, Missing}}(missing, num_frames)
-    for frame = 1:num_frames
-        if !(object_id in keys(keypoints_data["radii"][frame]))
-            continue
-        end
-        gt = keypoints_data["gt_poses"][frame][object_id]
-        R_gt = project2SO3(gt[1])
-        t_gt = gt[2] / 1000. # [m]
+function calc_pose_errors(Rs, ts, gt, object_id)
+    R_errs = Dict()
+    t_errs = Dict()
+    for frame in sort(collect(keys(Rs)))
+        gt_cur = gt[frame][object_id]
+        R_gt = project2SO3(gt_cur[1])
+        t_gt = gt_cur[2]
 
         # errors
         R_err = roterror(R_gt, Rs[frame])
@@ -92,21 +97,17 @@ end
 
 Compute 2D projection error given estimated rotation.
 """
-function calc_projection_errors(Rs, ts, keypoints_data, object_id, cadpath)
-    num_frames = length(keypoints_data["radii"])
-    camK = keypoints_data["camK"]
+function calc_projection_errors(Rs, ts, keypoint_data, gt, object_id, cadpath)
+    camK = keypoint_data["K"]
 
     cad = FileIO.load(cadpath*(@sprintf "obj_%06d.ply" object_id))
     cad_m = GeometryBasics.Mesh(GeometryBasics.coordinates(cad)/1000, cad.faces)
 
-    proj_errors = Vector{Union{Float64, Missing}}(missing, num_frames)
-    for frame = 1:num_frames
-        if !(object_id in keys(keypoints_data["radii"][frame]))
-            continue
-        end
-        gt = keypoints_data["gt_poses"][frame][object_id]
-        R_gt = project2SO3(gt[1])
-        t_gt = gt[2] / 1000. # [m]
+    proj_errors = Dict()
+    for frame in sort(collect(keys(Rs)))
+        gt_cur = gt[frame][object_id]
+        R_gt = project2SO3(gt_cur[1])
+        t_gt = gt_cur[2]
 
         # 2D projection error
         proj_error = 0.
