@@ -1,11 +1,16 @@
 # Pose Uncertainty Sets
 Julia code for Pose Uncertainty Sets
 
+## Quick Start
+- data folder
+
+
 ## Organization
 ```
 ├── scripts
 ├── src
 │   ├── datasets
+│   ├── visualization
 ```
 - `scripts` has ready-written scripts to reproduce experiments. They may be run directly via `include("scripts/NAME.jl")` in the Julia REPL.
 - `src` has functions. At the top level are the core functions for processing a single image.
