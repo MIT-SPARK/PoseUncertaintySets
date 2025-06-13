@@ -19,11 +19,11 @@ function dataset_pose_est(keypoint_data, object_id, method; kwargs...)
     camK = keypoint_data["K"]
     num_frames = length(keys(keypoint_data["r"]))
 
-    Rs = Dict()
-    ts = Dict()
-    gaps = Dict()
-    times = Dict()
-    extras = Dict()
+    Rs = Dict{Int, Any}()
+    ts = Dict{Int, Any}()
+    gaps = Dict{Int, Float64}()
+    times = Dict{Int, Float64}()
+    extras = Dict{Int, Any}()
 
     println("Starting $num_frames frames...")
     for frame in sort(collect(keys(keypoint_data["r"])))
@@ -73,8 +73,8 @@ end
 Compute angular error (degrees) and translation error (mm) of estimate.
 """
 function calc_pose_errors(Rs, ts, gt, object_id)
-    R_errs = Dict()
-    t_errs = Dict()
+    R_errs = Dict{Int, Float64}()
+    t_errs = Dict{Int, Float64}()
     for frame in sort(collect(keys(Rs)))
         gt_cur = gt[frame][object_id]
         R_gt = project2SO3(gt_cur[1])
@@ -103,7 +103,7 @@ function calc_projection_errors(Rs, ts, keypoint_data, gt, object_id, cadpath)
     cad = FileIO.load(cadpath*(@sprintf "obj_%06d.ply" object_id))
     cad_m = GeometryBasics.Mesh(GeometryBasics.coordinates(cad)/1000, cad.faces)
 
-    proj_errors = Dict()
+    proj_errors = Dict{Int, Float64}()
     for frame in sort(collect(keys(Rs)))
         gt_cur = gt[frame][object_id]
         R_gt = project2SO3(gt_cur[1])

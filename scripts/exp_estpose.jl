@@ -28,7 +28,7 @@ for object_id in object_ids
     R_errs, t_errs = calc_pose_errors(Rs, ts, gt, object_id)
     proj_errs = calc_projection_errors(Rs, ts, keypoint_data, gt, object_id, cadpath)
     # save
-    errs_obj = DataFrame(R=collect(values(R_errs)), t=collect(values(t_errs)), proj=collect(values(proj_errs)), gap=collect(values(gaps)), time=collect(values(times)), frame=keys(R_errs), id=object_id)
+    errs_obj = DataFrame(R=collect(values(R_errs)), t=collect(values(t_errs)), proj=collect(values(proj_errs)), gap=collect(values(gaps)), time=collect(values(times)), frame=collect(keys(R_errs)), id=object_id)
     global errs_g1, solns_g1
     errs_g1 = [errs_g1;errs_obj]
     solns_g1[object_id] = (Rs, ts)
@@ -47,7 +47,7 @@ for object_id in object_ids
     R_errs, t_errs = calc_pose_errors(Rs, ts, gt, object_id)
     proj_errs = calc_projection_errors(Rs, ts, keypoint_data, gt, object_id, cadpath)
     # save
-    errs_obj = DataFrame(R=collect(values(R_errs)), t=collect(values(t_errs)), proj=collect(values(proj_errs)), gap=collect(values(gaps)), time=collect(values(times)), frame=1:size(R_errs,1), id=object_id)
+    errs_obj = DataFrame(R=collect(values(R_errs)), t=collect(values(t_errs)), proj=collect(values(proj_errs)), gap=collect(values(gaps)), time=collect(values(times)), frame=collect(keys(R_errs)), id=object_id)
     global errs_g2, solns_g2
     errs_g2 = [errs_g2;errs_obj]
     solns_g2[object_id] = (Rs, ts)
@@ -66,7 +66,7 @@ for object_id in object_ids
     R_errs, t_errs = calc_pose_errors(Rs, ts, gt, object_id)
     proj_errs = calc_projection_errors(Rs, ts, keypoint_data, gt, object_id, cadpath)
     # save
-    errs_obj = DataFrame(R=collect(values(R_errs)), t=collect(values(t_errs)), proj=collect(values(proj_errs)), gap=collect(values(purse_emptys)), time=collect(values(times)), frame=1:size(R_errs,1), id=object_id)
+    errs_obj = DataFrame(R=collect(values(R_errs)), t=collect(values(t_errs)), proj=collect(values(proj_errs)), gap=collect(values(purse_emptys)), time=collect(values(times)), frame=collect(keys(R_errs)), id=object_id)
     global errs_r, solns_r
     errs_r = [errs_r;errs_obj]
     solns_r[object_id] = (Rs, ts)
