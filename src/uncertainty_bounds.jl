@@ -79,7 +79,7 @@ function bounding_ellipse(center, q_front, q_backproj, q_eqs; solver=Clarabel.Op
     optimize!(model)
 
     if !silent && !is_solved_and_feasible(model)
-        printstyled("Solver did not find an optimal solution!\n",color=:red)
+        @warn "Solver did not find an optimal solution!"
     end
     H0_val = value.(H0)
 
@@ -157,16 +157,16 @@ end
 """
 Uncertainty bound from "Object Pose Estimation with Statistical Guarantees"
 
-Maximize distance to PURSE while remaining in PURSE
+Maximize distance to PURSE while remaining in PURSE.
 """
-function purse_bounds(center, y, r, b, camK; silent=false)
+function purse_bounds(center, y, r, b, camK; order=2, silent=false)
     q_front, q_backproj = uncertaintyset_l2(y, r, b, camK)
     q_eqs = SO3_constraints()
 
-    return purse_bounds(center, q_front, q_backproj, q_eqs; silent=silent)
+    return purse_bounds(center, q_front, q_backproj, q_eqs; order=order, silent=silent)
 end
 
-function purse_bounds(center, q_front, q_backproj, q_eqs; silent=false)
+function purse_bounds(center, q_front, q_backproj, q_eqs; order=2, silent=false)
     Rc = reshape(center[1:9],3,3)
     tc = center[10:12]
 
@@ -212,10 +212,10 @@ function purse_bounds(center, q_front, q_backproj, q_eqs; silent=false)
 
         # solve
         pop = [obj; ineq; eq]
-        order = 2 # supplementary material: they use second order
-        # opt, sol, gap, data = cs_tssos_first(pop, vars, order, numeq=length(eq), TS=false, CS=false, QUIET=silent, solution=true, refine=false)
+        order = order # supplementary material: they use second order
+        opt, sol, gap, data = cs_tssos_first(pop, vars, order, numeq=length(eq), TS=false, CS=false, QUIET=silent, solution=true, refine=false)
 
-        if isdefined(Main, :Infiltrator) Main.infiltrate(@__MODULE__, Base.@locals, @__FILE__, @__LINE__) end # 🚨 INFILTRATOR 🚨
+        # if isdefined(Main, :Infiltrator) Main.infiltrate(@__MODULE__, Base.@locals, @__FILE__, @__LINE__) end # 🚨 INFILTRATOR 🚨
 
         if data.SDP_status != MOI.OPTIMAL
             @warn "λ=$λ returned status $(data.SDP_status). Results may not be lower bound!"
@@ -236,4 +236,71 @@ function purse_bounds(center, q_front, q_backproj, q_eqs; silent=false)
     end
 
     return trans_bound, trans_gap, ang_bound, ang_gap
+end
+
+"""
+Solving the bounding sphere problem with a direct relaxation.
+
+Returns radius of sphere and SDP status.
+
+Why solve for a joint bounding sphere? The RANSAG approach makes much more sense.
+"""
+function bounding_sphere(center, y, r, b, camK; order=1, silent=false)
+    q_front, q_backproj = uncertaintyset_l2(y, r, b, camK)
+    q_eqs = SO3_constraints()
+
+    return bounding_sphere(center, q_front, q_backproj, q_eqs; order=order, silent=silent)
+end
+
+
+function bounding_sphere(center, q_front, q_backproj, q_eqs; order=1, silent=false)
+
+    Rc = reshape(center[1:9],3,3)
+    tc = center[10:12]
+
+    @polyvar R[1:3,1:3]
+    @polyvar t[1:3]
+    vars = [vec(R); t]
+
+    # objective
+    W = [I -center; -center' center'*center]
+    obj = -[vars;1]'*W*[vars;1] # equivalent to minimizing radius of ellipse centered at `center`
+
+    # constraints
+    # expr ≥ 0
+    ineq = zeros(Polynomial{DynamicPolynomials.Commutative{DynamicPolynomials.CreationOrder}, Graded{LexOrder}, Float64}, 0) 
+    # expr = 0
+    eq = zeros(Polynomial{DynamicPolynomials.Commutative{DynamicPolynomials.CreationOrder}, Graded{LexOrder}, Float64}, 0) 
+
+    # PURSE constraints
+    for (i,q) in enumerate(q_backproj)
+        push!(ineq, -[vars;1]'*[q.H  q.c;  q.c'  q.d]*[vars;1])
+    end
+    for (i,q) in enumerate(q_front)
+        push!(ineq, -[vars;1]'*[q.H  q.c;  q.c'  q.d]*[vars;1])
+    end
+    for (i,q) in enumerate(q_eqs)
+        Q = Symmetric([q.H  q.c;  q.c'  q.d])
+        push!(eq, [vars;1]'*[q.H  q.c;  q.c'  q.d]*[vars;1])
+    end
+
+    # SO(3) constraints
+    # append!(eq, vec(R'*R - I)) # O(3)
+    # append!(eq, R[1:3,3] .- cross(R[1:3,1],R[1:3,2]))
+    # append!(eq, R[1:3,1] .- cross(R[1:3,2],R[1:3,3]))
+    # append!(eq, R[1:3,2] .- cross(R[1:3,3],R[1:3,1]))
+
+    # solve
+    pop = [obj; ineq; eq]
+    order = order
+    opt, sol, gap, data = cs_tssos_first(pop, vars, order, numeq=length(eq), TS=false, CS="MF", QUIET=silent, solution=true, refine=false)
+
+    # if isdefined(Main, :Infiltrator) Main.infiltrate(@__MODULE__, Base.@locals, @__FILE__, @__LINE__) end # 🚨 INFILTRATOR 🚨
+
+    if data.SDP_status != MOI.OPTIMAL
+        @warn "Returned status $(data.SDP_status). Results may not be lower bound!"
+        gap = -1
+    end
+
+    return -opt, data.SDP_status
 end
