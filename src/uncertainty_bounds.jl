@@ -27,6 +27,33 @@ function bounding_ellipse(center, y, r, b, camK; solver=Clarabel.Optimizer, sile
     q_front, q_backproj = uncertaintyset_l2(y, r, b, camK)
     q_eqs = SO3_constraints()
 
+    # # Add redundant constraints (outer product of chirality constraints)
+    # N = size(y,2)
+    # for i = 1:N
+    #     for j = 1:N
+    #         if i == j
+    #             continue
+    #         end
+
+    #         ikr_bK = kron(b[:,i]', camK)
+    #         jkr_bK = kron(b[:,j]', camK)
+    #         e3 = [0;0;1]
+
+    #         H = zeros(12,12)
+    #         H[1:9,1:9]  = 0.5*ikr_bK'*e3*e3'*jkr_bK
+    #         H[1:9,1:9] += 0.5*jkr_bK'*e3*e3'*ikr_bK
+    #         H[10:12,10:12] = camK'*e3*e3'*camK
+    #         H[1:9,10:12]  = 0.5*ikr_bK'*e3*e3'*camK
+    #         H[1:9,10:12] += 0.5*jkr_bK'*e3*e3'*camK
+    #         H[10:12,1:9] = H[1:9,10:12]'
+    #         H = -H
+    #         # if isdefined(Main, :Infiltrator) Main.infiltrate(@__MODULE__, Base.@locals, @__FILE__, @__LINE__) end # 🚨 INFILTRATOR 🚨
+    #         c = zeros(12)
+    #         s = 0.
+    #         push!(q_front, Quadratic(H, c, s))
+    #     end
+    # end
+
     return bounding_ellipse(center, q_front, q_backproj, q_eqs; solver=solver, silent=silent)
 end
 
@@ -240,6 +267,7 @@ function purse_bounds(center, q_front, q_backproj, q_eqs; order=2, silent=false)
     return trans_bound, trans_gap, ang_bound, ang_gap
 end
 
+
 """
 Solving the bounding sphere problem with a direct relaxation.
 
@@ -305,4 +333,68 @@ function bounding_sphere(center, q_front, q_backproj, q_eqs; order=1, silent=fal
     end
 
     return -opt, data.SDP_status
+end
+
+
+
+"""
+Refinement feasibility problem
+"""
+function check_feasibility(center, H_t, y, r, b, camK; order=1, silent=false)
+    q_front, q_backproj = uncertaintyset_l2(y, r, b, camK)
+
+    return check_feasibility(center, H_t, q_front, q_backproj; order=order, silent=silent)
+end
+
+function check_feasibility(center, H_t, q_front, q_backproj; order=1, silent=false)
+    @polyvar R[1:3,1:3]
+    @polyvar t[1:3]
+    vars = [vec(R); t]
+
+    # objective
+    V = eigvecs(H_t)
+    l = eigvals(H_t)
+    # obj = -t[3]
+    obj = -(V'*t)[1]
+
+    # constraints
+    # expr ≥ 0
+    ineq = zeros(Polynomial{DynamicPolynomials.Commutative{DynamicPolynomials.CreationOrder}, Graded{LexOrder}, Float64}, 0) 
+    # expr = 0
+    eq = zeros(Polynomial{DynamicPolynomials.Commutative{DynamicPolynomials.CreationOrder}, Graded{LexOrder}, Float64}, 0) 
+
+    # pose uncertainty set constraints
+    for (i,q) in enumerate(q_backproj)
+        push!(ineq, -[vars;1]'*[q.H  q.c;  q.c'  q.d]*[vars;1])
+    end
+    for (i,q) in enumerate(q_front)
+        push!(ineq, -[vars;1]'*[q.H  q.c;  q.c'  q.d]*[vars;1])
+    end
+    # ellipsoid constraints
+    # push!(ineq, ((vars - center)'*H*(vars-center)-1) - 1e-2)
+    push!(ineq, ((t - center[10:12])'*H_t*(t-center[10:12])-1) - 1e-2)
+
+    V = eigvecs(H_t)
+    l = eigvals(H_t)
+    # # |x| ≤ l
+    # append!(ineq, l .- V'*(t - center[10:12]))
+    # append!(ineq, l .+ V'*(t - center[10:12]))
+
+    # SO(3) constraints
+    append!(eq, vec(R'*R - I)) # O(3)
+    append!(eq, R[1:3,3] .- cross(R[1:3,1],R[1:3,2]))
+    append!(eq, R[1:3,1] .- cross(R[1:3,2],R[1:3,3]))
+    append!(eq, R[1:3,2] .- cross(R[1:3,3],R[1:3,1]))
+
+    # solve
+    pop = [obj; ineq; eq]
+    order = order
+    opt, sol, gap, data = cs_tssos_first(pop, vars, order, numeq=length(eq), TS="MD", CS="MF", QUIET=silent, solution=true, refine=false)
+
+    ineq_val = [i(vars=>sol) for i in ineq]
+    eq_val = [e(vars=>sol) for e in eq]
+
+    # if isdefined(Main, :Infiltrator) Main.infiltrate(@__MODULE__, Base.@locals, @__FILE__, @__LINE__) end # 🚨 INFILTRATOR 🚨
+
+    return sol, data.SDP_status
 end
