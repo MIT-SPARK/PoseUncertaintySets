@@ -13,11 +13,13 @@ end
 """
 Plot keypoints `y` and conformal radii `r`
 """
-function plot_keypoints!(plt, y, r)
+function plot_keypoints!(plt, y, r; set=true)
     for (idx, kpt) = enumerate(eachcol(y))
         u = Int(round(kpt[2]))
         v = Int(round(kpt[1]))
-        Plots.scatter!(plt,[v], [u], ms=r[idx], label=false, c=idx, ma=0.8)
+        if set
+            Plots.scatter!(plt,[v], [u], ms=r[idx], label=false, c=idx, ma=0.8)
+        end
         Plots.scatter!(plt,[v], [u], ms=1, label=false, c=idx)
     end
     return plt

@@ -151,3 +151,89 @@ function angular_bounds(center, H; silent=false, order=2)
 
     return Δθs, status_sdp, gaps
 end
+
+
+
+"""
+Uncertainty bound from "Object Pose Estimation with Statistical Guarantees"
+
+Maximize distance to PURSE while remaining in PURSE
+"""
+function purse_bounds(center, y, r, b, camK; silent=false)
+    q_front, q_backproj = uncertaintyset_l2(y, r, b, camK)
+    q_eqs = SO3_constraints()
+
+    return purse_bounds(center, q_front, q_backproj, q_eqs; silent=silent)
+end
+
+function purse_bounds(center, q_front, q_backproj, q_eqs; silent=false)
+    Rc = reshape(center[1:9],3,3)
+    tc = center[10:12]
+
+    @polyvar R[1:3,1:3]
+    @polyvar t[1:3]
+    vars = [vec(R); t]
+
+    ang_bound = 0.
+    ang_gap = 1e6
+    trans_bound = 0.
+    trans_gap = 1e6
+
+    for λ = [0, 1]
+        # objective
+        obj = -( λ*tr((R-Rc)'*(R-Rc)) + (1-λ)*(t-tc)'*(t-tc) )
+
+        # constraints
+        # expr ≥ 0
+        ineq = zeros(Polynomial{DynamicPolynomials.Commutative{DynamicPolynomials.CreationOrder}, Graded{LexOrder}, Float64}, 0) 
+        # expr = 0
+        eq = zeros(Polynomial{DynamicPolynomials.Commutative{DynamicPolynomials.CreationOrder}, Graded{LexOrder}, Float64}, 0) 
+
+        # PURSE constraints
+        X = [vars; 1]*[vars; 1]'
+        for (i,q) in enumerate(q_front)
+            Q = Symmetric([q.H  q.c;  q.c'  q.d])
+            push!(ineq, -tr(Q*X))
+        end
+        for (i,q) in enumerate(q_backproj)
+            Q = Symmetric([q.H  q.c;  q.c'  q.d])
+            push!(ineq, -tr(Q*X))
+        end
+        for (i,q) in enumerate(q_eqs)
+            Q = Symmetric([q.H  q.c;  q.c'  q.d])
+            push!(eq, tr(Q*X))
+        end
+
+        # SO(3) constraints
+        # append!(eq, vec(R'*R - I)) # O(3)
+        # append!(eq, R[1:3,3] .- cross(R[1:3,1],R[1:3,2]))
+        # append!(eq, R[1:3,1] .- cross(R[1:3,2],R[1:3,3]))
+        # append!(eq, R[1:3,2] .- cross(R[1:3,3],R[1:3,1]))
+
+        # solve
+        pop = [obj; ineq; eq]
+        order = 2 # supplementary material: they use second order
+        # opt, sol, gap, data = cs_tssos_first(pop, vars, order, numeq=length(eq), TS=false, CS=false, QUIET=silent, solution=true, refine=false)
+
+        if isdefined(Main, :Infiltrator) Main.infiltrate(@__MODULE__, Base.@locals, @__FILE__, @__LINE__) end # 🚨 INFILTRATOR 🚨
+
+        if data.SDP_status != MOI.OPTIMAL
+            @warn "λ=$λ returned status $(data.SDP_status). Results may not be lower bound!"
+            gap = -1
+        end
+
+        if λ == 1
+            # |R₁ - R₂|^2_F = |R₁|^2_F + |R₂|^2_F - 2⟨R₁, R₂⟩
+            # ⟨R₁, R₂⟩ = (6 - |R₁ - R₂|^2_F) / 2
+            frob_norm = -opt
+            inner_prod = (6 - frob_norm)/2
+            ang_bound = acos((inner_prod - 1) / 2)*180/π
+            ang_gap = gap
+        else
+            trans_bound = -opt
+            trans_gap = gap
+        end
+    end
+
+    return trans_bound, trans_gap, ang_bound, ang_gap
+end
