@@ -49,6 +49,8 @@ function bounding_ellipse(center, q_front, q_backproj, q_eqs; solver=Clarabel.Op
     # @variable(model, H0_r[1:9,1:9] ∈ PSDCone())
     # @variable(model, H0_p[1:3,1:3] ∈ PSDCone())
     # H0 = [H0_r zeros(9,3); zeros(3,9) H0_p]
+    # H0 = [zeros(9,9) zeros(9,3); zeros(3,9) H0_p]
+    # H0 = [H0_r zeros(9,3); zeros(3,9) zeros(3,3)]
 
     # diagonal
     # @variable(model, r_H0[1:12] .>= 0)
