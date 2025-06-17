@@ -35,10 +35,10 @@ end
 """
 Plot bounding box aligned with `H_t`
 """
-function plot_bbox!(plt,center, H_t, bounds)
+function plot_bbox!(plt,center, H_t, bounds; kwargs...)
     V = eigvecs(H_t)
     xyz = V'*center[end-2:end] .+ bounds'
     bbox = [[xyz[1,1]*ones(4); xyz[1,2]*ones(4)] repeat([xyz[2,1]; xyz[2,1]; xyz[2,2]; xyz[2,2]],2) repeat([xyz[3,1]; xyz[3,2]; xyz[3,1]; xyz[3,2]],2)]
     bbox = V*bbox'
-    return Plots.scatter!(plt,bbox[1,:], bbox[2,:], bbox[3,:])
+    return Plots.scatter!(plt,bbox[1,:], bbox[2,:], bbox[3,:]; kwargs...)
 end

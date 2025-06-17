@@ -10,7 +10,7 @@ using PoseUncertaintySets
 using SimpleRotations
 
 object_id = 9
-frame = 10
+frame = 9
 
 ## Load data
 keypoint_data, gt = load_keypoint_data(calibrate_l2)
@@ -56,7 +56,7 @@ surf = ellipse_to_surf(H_t, center[10:12], 100)
 # plot ellipse
 Plots.plot([center[10]],[center[11]],[center[12]], seriestype=:scatter, label="center")
 Plots.scatter!([0],[0],[0],label="camera")
-p2 = Plots.scatter3d!(surf[1,:], surf[2,:], surf[3,:])#, msw=0., alpha = 1)
+p2 = Plots.scatter3d!(surf[1,:], surf[2,:], surf[3,:], label="s-lemma")#, msw=0., alpha = 1)
 
 # plot PURSE bound
 # surf = ellipse_to_surf(diagm(ones(3)) ./ trans_bound, center[10:12], 100)
@@ -67,8 +67,8 @@ p2 = Plots.scatter3d!(surf[1,:], surf[2,:], surf[3,:])#, msw=0., alpha = 1)
 # Plots.scatter3d!(surf[1,:], surf[2,:], surf[3,:])
 
 
-plot_bbox!(p2, center, H_t, bounds)
-plot_bbox!(p2, center, H_t, bounds2)
+plot_bbox!(p2, center, H_t, bounds; label="direct")
+plot_bbox!(p2, center, H_t, bounds2; label="ellipse")
 
 
 
