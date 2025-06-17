@@ -47,7 +47,7 @@ H_t = inv(P*inv(H)*P')
 
 # bounding box approach
 # H_t = diagm(ones(3))
-bounds, gaps, statuses = refine_bbox(center, H, H_t, y, r, b, camK; mode=3, order=1, silent=true)
+bounds, gaps, statuses = refine_bbox(center, H, H_t, y, r, b, camK; mode=2, order=1, silent=true)
 bounds2, gaps2, statuses2 = refine_bbox(center, H, H_t, y, r, b, camK; mode=3, order=1, silent=true)
 
 
@@ -66,16 +66,6 @@ p2 = Plots.scatter3d!(surf[1,:], surf[2,:], surf[3,:])#, msw=0., alpha = 1)
 # surf = ellipse_to_surf(diagm(ones(3)) ./ rad, center[10:12], 100)
 # Plots.scatter3d!(surf[1,:], surf[2,:], surf[3,:])
 
-"""
-Plot bounding box aligned with `H_t`
-"""
-function plot_bbox!(plt,center, H_t, bounds)
-    V = eigvecs(H_t)
-    xyz = V'*center[end-2:end] .+ bounds'
-    bbox = [[xyz[1,1]*ones(4); xyz[1,2]*ones(4)] repeat([xyz[2,1]; xyz[2,1]; xyz[2,2]; xyz[2,2]],2) repeat([xyz[3,1]; xyz[3,2]; xyz[3,1]; xyz[3,2]],2)]
-    bbox = V*bbox'
-    return Plots.scatter!(plt,bbox[1,:], bbox[2,:], bbox[3,:])
-end
 
 plot_bbox!(p2, center, H_t, bounds)
 plot_bbox!(p2, center, H_t, bounds2)

@@ -402,17 +402,19 @@ end
 """
 Refine as bounding box aligned with axes of `H_t`.
 Options:
-- Whole PURSE (1)
-- ellipse + some of PURSE (2)
-- ellipse only (3)
+- SLOW: backproj + chilrality (1)
+- FASTER: ellipse + backproj + chilrality (2)
+    - no loss of tightness compared to (1)
+- BEST: ellipse + chirality (3)
+- FASTEST: ellipse only (4)
 """
-function refine_bbox(center, H, H_t, y, r, b, camK; mode=1, order=1, silent=false)
+function refine_bbox(center, H, H_t, y, r, b, camK; mode=3, order=1, silent=false)
     q_front, q_backproj = uncertaintyset_l2(y, r, b, camK)
 
     return refine_bbox(center, H, H_t, q_front, q_backproj; mode=mode, order=order, silent=silent)
 end
 
-function refine_bbox(center, H, H_t, q_front, q_backproj; mode=1, order=1, silent=false)
+function refine_bbox(center, H, H_t, q_front, q_backproj; mode=3, order=1, silent=false)
     @polyvar R[1:3,1:3]
     @polyvar t[1:3]
     vars = [vec(R); t]
@@ -453,6 +455,13 @@ function refine_bbox(center, H, H_t, q_front, q_backproj; mode=1, order=1, silen
                 push!(ineq, -[vars;1]'*[q.H  q.c;  q.c'  q.d]*[vars;1])
             end
         elseif mode == 3
+            # pose uncertainty set constraints
+            push!(ineq, -( (vars-center)'*H*(vars-center) - 1 ))
+            # chirality
+            for (i,q) in enumerate(q_front)
+                push!(ineq, -[vars;1]'*[q.H  q.c;  q.c'  q.d]*[vars;1])
+            end
+        elseif mode == 4
             # only pose uncertainty set constraints
             push!(ineq, -( (vars-center)'*H*(vars-center) - 1 ))
         end
@@ -484,3 +493,5 @@ function refine_bbox(center, H, H_t, q_front, q_backproj; mode=1, order=1, silen
 
     return bounds, gaps, statuses
 end
+
+# NEXT: add chirality

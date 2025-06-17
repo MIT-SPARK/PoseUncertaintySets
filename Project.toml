@@ -4,6 +4,7 @@ authors = ["Lorenzo Shaikewitz <lorenzos@mit.edu>"]
 version = "0.1.0"
 
 [deps]
+BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
 Clarabel = "61c947e1-3e6d-4ee4-985a-eec8c727bd6e"
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
 Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
@@ -28,6 +29,7 @@ TSSOS = "81648402-ffe6-11e9-2394-0de17a9afdad"
 TexTables = "ebf5ac4f-3ec1-555f-9ac9-3d72ed88c471"
 
 [compat]
+BenchmarkTools = "1.6.0"
 Clarabel = "0.11.0"
 DataFrames = "1.7.0"
 Distributions = "0.25.120"
