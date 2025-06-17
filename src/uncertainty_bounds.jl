@@ -107,7 +107,7 @@ function bounding_ellipse(center, q_front, q_backproj, q_eqs; solver=Clarabel.Op
     # Solve with JuMP
     optimize!(model)
 
-    if !silent && !is_solved_and_feasible(model)
+    if !is_solved_and_feasible(model)
         @warn "Solver did not find an optimal solution!"
     end
     H0_val = value.(H0)

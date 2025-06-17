@@ -6,6 +6,7 @@ using TSSOS, DynamicPolynomials
 using Printf
 using JuMP
 using Clarabel, MosekTools
+using SDPLR
 using GeometryBasics
 using FileIO, MeshIO
 
@@ -22,7 +23,7 @@ include("load_data.jl")
 export calibrate_l2, load_keypoint_data
 
 include("pose_estimation.jl")
-export gaussianpose, ransagpose
+export gaussianpose, ransagpose, gaussianpose_sdplr
 
 include("uncertainty_set.jl")
 include("uncertainty_bounds.jl")

@@ -157,3 +157,83 @@ function ransagpose(r, y, b, camK; T=1000)
 
     return R, t, purse_empty
 end
+
+
+"""
+    gaussianpose_sdplr(r, y, b, camK; silent=true)
+
+Certifiable PnP with Gaussian noise assumption.
+
+JuMP version just for fun. Not recommended.
+
+# Arguments:
+- `r`: vector of conformal radii (same confidence) [N]
+- `y`: keypoint measurements homogenized by 1 [3 x N]
+- `b`: 3D canonical keypoint positions [3 x N]
+- `camK`: camera calibration matrix [3 x 3]
+
+# Returns:
+- `R`: rotation estimate
+- `t`: translation estimate
+- `gap`: suboptimality gap
+- `status`: SDP solve status
+"""
+function gaussianpose_sdplr(r, y, b, camK; silent=true)
+    # objective is scale invariant
+    # α_quantile = quantile(Normal(), 1-α)
+    # σ = r / α_quantile
+    σ = r
+
+    N = size(r,1)
+    model = Model(SDPLR.Optimizer)
+    @variable(model, X[1:10,1:10] ∈ PSDCone()) # vec(R)*vec(R)'
+
+    # eliminate t
+    e3 = [0;0;1]
+    U = Array{Any}(undef, N)
+    for i = 1:N
+        U[i] = (I - y[:,i]*e3')*camK
+    end
+    H = sum([U[i]'*U[i] / (σ[i]^2) for i = 1:N])
+    # t = -inv(H)*sum([U[i]'*U[i]*R*b[:,i] / (σ[i]^2) for i = 1:N])
+    t_mult = -inv(H)*sum([U[i]'*kron(b[:,i]', U[i]) / (σ[i]^2) for i = 1:N])
+
+    # objective
+    A = zeros(9,9)
+    for i = 1:N
+        kburi = kron(b[:,i]', U[i])
+
+        A += kburi'*kburi / σ[i]^2
+        A += (t_mult'*U[i]')*U[i]*t_mult / σ[i]^2
+        # cross term
+        A += t_mult'*U[i]'*kburi / σ[i]^2
+        A += kburi'*U[i]*t_mult / σ[i]^2
+        
+        # Real value:
+        # term = U[i]*R*b[:,i] + U[i]*t_mult*r
+        # obj += term'*term / σ[i]^2
+    end
+    @objective(model, Min, tr(A'*X[1:9,1:9]))
+
+    # constraints
+    @constraint(model, X[10,10] == 1)
+    q_eqs = SO3_constraints()
+    for (i,q) in enumerate(q_eqs)
+        Q = Symmetric([q.H[1:9,1:9]  q.c[1:9];  q.c[1:9]'  q.d])
+        @constraint(model,  tr(Q*X) == 0.)
+    end
+
+    set_attribute(model, "maxrank", (m, n) -> 1)
+    optimize!(model)
+
+    if !is_solved_and_feasible(model)
+        @warn "Solver did not find an optimal solution!"
+    end
+
+    ## Extract solution
+    r = value.(X)[1,1:9]
+    R_est = project2SO3(reshape(r,3,3))
+    t_est = t_mult*vec(R_est)
+
+    return R_est, t_est
+end
