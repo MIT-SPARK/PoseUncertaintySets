@@ -26,7 +26,8 @@ export gaussianpose, ransagpose
 
 include("uncertainty_set.jl")
 include("uncertainty_bounds.jl")
-export bounding_ellipse, angular_bounds, purse_bounds, bounding_sphere, check_feasibility
+export bounding_ellipse, angular_bounds, purse_bounds
+export bounding_sphere, check_feasibility, refine_bbox
 
 include("datasets/poses.jl")
 export dataset_pose_est, calc_pose_errors, calc_projection_errors

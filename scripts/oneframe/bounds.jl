@@ -32,18 +32,25 @@ R_est, t_est, gap, SDP_status = gaussianpose(r, y, b, camK; silent=true, order=2
 
 ## S-Lemma
 center = [vec(R_est); t_est]
-H, status = bounding_ellipse(center, y, r, b, camK; solver=Mosek.Optimizer, silent=false)
+H, status = bounding_ellipse(center, y, r, b, camK; solver=Mosek.Optimizer, silent=true)
 # trans_bound, trans_gap, ang_bound, ang_gap = purse_bounds(center, y, r, b, camK; order=2, silent=false)
-
-# r, status2 = bounding_sphere(center, y, r, b, camK; order=2, silent=false)
+# rad, status2 = bounding_sphere(center, y, r, b, camK; order=1, silent=false)
 
 ## Angular Bounds
 # Δθs, status_angbounds, gaps = angular_bounds(center, H)
 
-## Visualize
+
+## Refinement Ideas
+# marginalize via projection
 P = [zeros(3,9) diagm(ones(3))]
 H_t = inv(P*inv(H)*P')
 
+# bounding box approach
+# H_t = diagm(ones(3))
+bounds, gaps, statuses = refine_bbox(center, H, H_t, y, r, b, camK; mode=2, order=1, silent=false) # PURSE constraints
+
+
+## Visualize
 surf = ellipse_to_surf(H_t, center[10:12], 100)
 # plot ellipse
 Plots.plot([center[10]],[center[11]],[center[12]], seriestype=:scatter, label="center")
@@ -54,21 +61,30 @@ p2 = Plots.scatter3d!(surf[1,:], surf[2,:], surf[3,:])#, msw=0., alpha = 1)
 # surf = ellipse_to_surf(diagm(ones(3)) ./ trans_bound, center[10:12], 100)
 # Plots.scatter3d!(surf[1,:], surf[2,:], surf[3,:])
 
-# plot joint bound
-# surf = ellipse_to_surf(diagm(ones(3)) ./ r, center[10:12], 100)
+# plot sphere bound
+# surf = ellipse_to_surf(diagm(ones(3)) ./ rad, center[10:12], 100)
 # Plots.scatter3d!(surf[1,:], surf[2,:], surf[3,:])
 
-
-## Refinement
-l = eigvals(H_t)
+# plot bbox
 V = eigvecs(H_t)
-l[1] = 2
-H_t2 = V*diagm(l)*V'
+xyz = V'*t_est .+ bounds'
+bbox = [[xyz[1,1]*ones(4); xyz[1,2]*ones(4)] repeat([xyz[2,1]; xyz[2,1]; xyz[2,2]; xyz[2,2]],2) repeat([xyz[3,1]; xyz[3,2]; xyz[3,1]; xyz[3,2]],2)]
+bbox = V*bbox'
+Plots.scatter!(bbox[1,:], bbox[2,:], bbox[3,:])
 
 
-sol, status_feas = check_feasibility(center, H_t2, y, r, b, camK; order=1, silent=false)
-surf = ellipse_to_surf(H_t2, center[10:12], 100)
-Plots.plot([center[10]],[center[11]],[center[12]], seriestype=:scatter, label="center")
-Plots.scatter!([0],[0],[0],label="camera")
-Plots.scatter3d!(surf[1,:], surf[2,:], surf[3,:])
-p3 = Plots.scatter!([sol[10]],[sol[11]],[sol[12]],label="sample?")
+
+
+# ## Refinement
+# l = eigvals(H_t)
+# V = eigvecs(H_t)
+# l[1] = (V'*center[10:12])[1]
+# H_t2 = V*diagm(l)*V'
+
+
+# sol, status_feas = check_feasibility(center, H_t2, y, r, b, camK; order=1, silent=false)
+# surf = ellipse_to_surf(H_t2, center[10:12], 100)
+# Plots.plot([center[10]],[center[11]],[center[12]], seriestype=:scatter, label="center")
+# Plots.scatter!([0],[0],[0],label="camera")
+# Plots.scatter3d!(surf[1,:], surf[2,:], surf[3,:])
+# p3 = Plots.scatter!([sol[10]],[sol[11]],[sol[12]],label="sample?")

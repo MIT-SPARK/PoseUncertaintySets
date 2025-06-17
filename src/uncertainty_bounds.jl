@@ -398,3 +398,89 @@ function check_feasibility(center, H_t, q_front, q_backproj; order=1, silent=fal
 
     return sol, data.SDP_status
 end
+
+"""
+Refine as bounding box aligned with axes of `H_t`.
+Options:
+- Whole PURSE (1)
+- ellipse + some of PURSE (2)
+- ellipse only (3)
+"""
+function refine_bbox(center, H, H_t, y, r, b, camK; mode=1, order=1, silent=false)
+    q_front, q_backproj = uncertaintyset_l2(y, r, b, camK)
+
+    return refine_bbox(center, H, H_t, q_front, q_backproj; mode=mode, order=order, silent=silent)
+end
+
+function refine_bbox(center, H, H_t, q_front, q_backproj; mode=1, order=1, silent=false)
+    @polyvar R[1:3,1:3]
+    @polyvar t[1:3]
+    vars = [vec(R); t]
+
+    # save bounds for each axis
+    bounds = zeros(2,3)
+    gaps = zeros(2,3)
+    statuses = Array{MOI.TerminationStatusCode}(undef, 2,3)
+
+    # eigendecomposition
+    V = eigvecs(H_t)
+    l = eigvals(H_t)
+    for idx = [1, 2, 3]
+        # objective: axis-aligned bbox
+        obj = (V'*(t - center[10:12]))[idx]
+
+        # constraints
+        # expr ≥ 0
+        ineq = zeros(Polynomial{DynamicPolynomials.Commutative{DynamicPolynomials.CreationOrder}, Graded{LexOrder}, Float64}, 0) 
+        # expr = 0
+        eq = zeros(Polynomial{DynamicPolynomials.Commutative{DynamicPolynomials.CreationOrder}, Graded{LexOrder}, Float64}, 0) 
+
+        if mode == 1
+            # pose uncertainty set constraints
+            for (i,q) in enumerate(q_backproj)
+                push!(ineq, -[vars;1]'*[q.H  q.c;  q.c'  q.d]*[vars;1])
+            end
+            for (i,q) in enumerate(q_front)
+                push!(ineq, -[vars;1]'*[q.H  q.c;  q.c'  q.d]*[vars;1])
+            end
+        elseif mode == 2
+            # sphere constraints + pose uncertainty set constraints
+            push!(ineq, -( (vars-center)'*H*(vars-center) - 1 ))
+            for (i,q) in enumerate(q_backproj)
+                push!(ineq, -[vars;1]'*[q.H  q.c;  q.c'  q.d]*[vars;1])
+            end
+            for (i,q) in enumerate(q_front)
+                push!(ineq, -[vars;1]'*[q.H  q.c;  q.c'  q.d]*[vars;1])
+            end
+        elseif mode == 3
+            # only pose uncertainty set constraints
+            push!(ineq, -( (vars-center)'*H*(vars-center) - 1 ))
+        end
+
+        # Always enforce SO(3) constraints (TODO: ?)
+        append!(eq, vec(R'*R - I)) # O(3)
+        append!(eq, R[1:3,3] .- cross(R[1:3,1],R[1:3,2]))
+        append!(eq, R[1:3,1] .- cross(R[1:3,2],R[1:3,3]))
+        append!(eq, R[1:3,2] .- cross(R[1:3,3],R[1:3,1]))
+
+        # solve
+        for (row, mult) in enumerate([-1, 1])
+            obj_cur = obj*mult
+            pop = [obj_cur; ineq; eq]
+            order = order
+            opt, sol, gap, data = cs_tssos_first(pop, vars, order, numeq=length(eq), TS="MD", CS="MF", QUIET=silent, solution=true, refine=false)
+
+            if data.SDP_status != MOI.OPTIMAL
+                @warn "Status $(data.SDP_status) along axis $idx ($mult)"
+            end
+
+            bounds[row,idx] = mult*opt
+            gaps[row,idx] = gap
+            statuses[row,idx] = data.SDP_status
+        end
+
+        # if isdefined(Main, :Infiltrator) Main.infiltrate(@__MODULE__, Base.@locals, @__FILE__, @__LINE__) end # 🚨 INFILTRATOR 🚨
+    end
+
+    return bounds, gaps, statuses
+end
