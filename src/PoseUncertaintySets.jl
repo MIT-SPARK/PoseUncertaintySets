@@ -32,8 +32,8 @@ export bounding_sphere, check_feasibility, refine_bbox
 include("datasets/poses.jl")
 export dataset_pose_est, calc_pose_errors, calc_projection_errors
 
-include("visualization/plot_ellipse.jl")
-export ellipse_to_surf
+include("visualization/plot_3d.jl")
+export ellipse_to_surf, plot_bbox!
 include("visualization/image_tools.jl")
 export plot_image, plot_keypoints!, plot_3d_keypoints!, plot_mask!, plot_outline!
 
