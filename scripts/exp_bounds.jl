@@ -55,8 +55,6 @@ for object_id in object_ids
     println("\n------------$object_id------------")
     # solve!
     Δθs, Δts, statuses, times = dataset_ransag_bounds(keypoint_data, solns_g2, object_id)
-
-    if isdefined(Main, :Infiltrator) Main.infiltrate(@__MODULE__, Base.@locals, @__FILE__, @__LINE__) end # 🚨 INFILTRATOR 🚨
     
     angles = collect(values(Δθs))
     times = collect(values(times))

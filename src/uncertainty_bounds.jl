@@ -260,7 +260,7 @@ function purse_bounds(center, q_front, q_backproj, q_eqs; order=2, silent=false)
             # ⟨R₁, R₂⟩ = (6 - |R₁ - R₂|^2_F) / 2
             frob_norm = -opt
             inner_prod = (6 - frob_norm)/2
-            ang_bound = acos((inner_prod - 1) / 2)*180/π
+            ang_bound = SimpleRotations.robust_acos((inner_prod - 1) / 2)*180/π
             ang_gap = gap
         else
             trans_bound = -opt
