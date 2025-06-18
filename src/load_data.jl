@@ -1,7 +1,7 @@
 ## Functions to load data
 # Lorenzo Shaikewitz, 6/13/2025
 
-function load_keypoint_data(cal_fn=calibrate_l2; path_kpts3d="../data/kpts3d.json", 
+function load_keypoint_data(cal_fn=calibrate_l2; α=0.1, path_kpts3d="../data/kpts3d.json", 
         parent_cal="../data/bop/lmo/test_bop19/000002", parent_test="../data/bop/lmo/test_all/000002",
         detections_cal_path="../data/detections_lmo_cal.json", detections_test_path="../data/detections_lmo_test.json")
     
@@ -15,7 +15,7 @@ function load_keypoint_data(cal_fn=calibrate_l2; path_kpts3d="../data/kpts3d.jso
     kpts_test = load_raw_keypoints(detections_test_path)
 
     # calibrate!
-    radii, scores, ns = cal_fn(kpts_cal, gt_cal, camK, kpts_test, kpt_lib)
+    radii, scores, ns = cal_fn(kpts_cal, gt_cal, camK, kpts_test, kpt_lib, α)
 
     data = Dict("K"=>camK, "r"=>radii, "y"=>kpts_test, "b"=>kpt_lib)
     return data, gt_test

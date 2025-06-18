@@ -11,7 +11,7 @@ image_parent = "../data/bop/lmo/test_all/000002/rgb"
 cadpath = "../data/bop/lmo/models_eval/"
 
 ## Load data
-keypoint_data, gt = load_keypoint_data(calibrate_l2)
+keypoint_data, gt = load_keypoint_data(calibrate_l2, α=0.1)
 camK = keypoint_data["K"]
 
 r = keypoint_data["r"][frame][object_id]

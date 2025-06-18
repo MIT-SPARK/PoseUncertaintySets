@@ -107,8 +107,9 @@ function bounding_ellipse(center, q_front, q_backproj, q_eqs; solver=Clarabel.Op
     # Solve with JuMP
     optimize!(model)
 
-    if !is_solved_and_feasible(model)
-        @warn "Solver did not find an optimal solution!"
+    if !silent && !is_solved_and_feasible(model)
+        # not really a warning
+        @warn "[bounding_ellipse] Solver terminated with status $(termination_status(model))"
     end
     H0_val = value.(H0)
 
@@ -247,7 +248,7 @@ function purse_bounds(center, q_front, q_backproj, q_eqs; order=2, silent=false)
         # if isdefined(Main, :Infiltrator) Main.infiltrate(@__MODULE__, Base.@locals, @__FILE__, @__LINE__) end # 🚨 INFILTRATOR 🚨
 
         if data.SDP_status != MOI.OPTIMAL
-            @warn "λ=$λ returned status $(data.SDP_status). Results may not be lower bound!"
+            @warn "[purse_bounds] λ=$λ returned status $(data.SDP_status). Results may not be lower bound!"
             gap = -1
         end
 
@@ -328,7 +329,7 @@ function bounding_sphere(center, q_front, q_backproj, q_eqs; order=1, silent=fal
     # if isdefined(Main, :Infiltrator) Main.infiltrate(@__MODULE__, Base.@locals, @__FILE__, @__LINE__) end # 🚨 INFILTRATOR 🚨
 
     if data.SDP_status != MOI.OPTIMAL
-        @warn "Returned status $(data.SDP_status). Results may not be lower bound!"
+        @warn "[bounding_sphere] Returned status $(data.SDP_status). Results may not be lower bound!"
         gap = -1
     end
 
@@ -414,6 +415,15 @@ function refine_bbox(center, H, H_t, y, r, b, camK; mode=3, order=1, silent=fals
     return refine_bbox(center, H, H_t, q_front, q_backproj; mode=mode, order=order, silent=silent)
 end
 
+function refine_bbox(center, H, y, r, b, camK; mode=3, order=1, silent=false)
+    q_front, q_backproj = uncertaintyset_l2(y, r, b, camK)
+
+    # marginalize via projection
+    P = [zeros(3,9) diagm(ones(3))]
+    H_t = inv(P*inv(H)*P')
+    return refine_bbox(center, H, H_t, q_front, q_backproj; mode=mode, order=order, silent=silent)
+end
+
 function refine_bbox(center, H, H_t, q_front, q_backproj; mode=3, order=1, silent=false)
     @polyvar R[1:3,1:3]
     @polyvar t[1:3]
@@ -480,7 +490,7 @@ function refine_bbox(center, H, H_t, q_front, q_backproj; mode=3, order=1, silen
             opt, sol, gap, data = cs_tssos_first(pop, vars, order, numeq=length(eq), TS="MD", CS="MF", QUIET=silent, solution=true, refine=false)
 
             if data.SDP_status != MOI.OPTIMAL
-                @warn "Status $(data.SDP_status) along axis $idx ($mult)"
+                @warn "[refine_bbox] Status $(data.SDP_status) along axis $idx ($mult)"
             end
 
             bounds[row,idx] = mult*opt

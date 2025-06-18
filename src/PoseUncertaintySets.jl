@@ -32,6 +32,8 @@ export bounding_sphere, check_feasibility, refine_bbox
 
 include("datasets/poses.jl")
 export dataset_pose_est, calc_pose_errors, calc_projection_errors
+include("datasets/bounds.jl")
+export dataset_bounds
 
 include("visualization/plot_3d.jl")
 export ellipse_to_surf, plot_bbox!

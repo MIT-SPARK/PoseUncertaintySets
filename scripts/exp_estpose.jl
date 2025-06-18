@@ -9,12 +9,13 @@ using DataFrames, TexTables
 using PoseUncertaintySets
 
 # parameters
-save_path = "../data/lmo/results_l2_01_real.dat"
-cadpath = "../data/lmo/models_eval/"
+α = 0.1
+save_path = "../data/pose_alpha$(round(Int,α*100)).dat"
+cadpath = "../data/bop/lmo/models_eval/"
 object_ids = [1,5,6,9,8,10,11,12]
 # cadnames = Dict(1=>"ape", 5=>"can", 6=>"cat", 8=>"driller", 9=>"duck", 10=>"eggbox", 11=>"glue", 12=>"holepuncher")
 
-keypoint_data, gt = load_keypoint_data(calibrate_l2)
+keypoint_data, gt = load_keypoint_data(calibrate_l2, α=α)
 
 # GAUSSIAN, ORDER 1
 println("\nStarting Gaussian Order 1...")
@@ -78,6 +79,7 @@ pose_dict = Dict("g1"=>(solns_g1, errs_g1), "g2"=>(solns_g2, errs_g2), "r"=>(sol
 serialize(save_path, pose_dict)
 
 ## Display results
+# pose_dict = deserialize(save_path)
 (solns_g1, errs_g1) = pose_dict["g1"]
 (solns_g2, errs_g2) = pose_dict["g2"]
 (solns_r, errs_r) = pose_dict["r"]
