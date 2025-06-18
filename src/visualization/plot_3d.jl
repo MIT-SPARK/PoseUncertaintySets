@@ -42,3 +42,11 @@ function plot_bbox!(plt,center, H_t, bounds; kwargs...)
     bbox = V*bbox'
     return Plots.scatter!(plt,bbox[1,:], bbox[2,:], bbox[3,:]; kwargs...)
 end
+
+
+"""
+Plot a CDF
+"""
+function plot_cdf!(plt, data; kwargs...)
+    Plots.plot!(plt, sort(data), (1:length(data))/length(data); kwargs...)
+end

@@ -6,6 +6,7 @@ using Printf
 using Statistics
 using DataFrames, TexTables
 using JuMP
+import Plots
 
 using PoseUncertaintySets
 
@@ -38,7 +39,7 @@ for object_id in object_ids
     
     # save
     bounds_obj = DataFrame(frame=collect(keys(Hs)), id=object_id, time_s=times[1,:],
-                θx=angles[1,:], θy=angles[1,:], θz=angles[3,:], time_r=times[2,:],
+                θx=angles[1,:], θy=angles[2,:], θz=angles[3,:], time_r=times[2,:],
                 tu1=trans[1,1:3:end], tu2=trans[1,2:3:end], tu3=trans[1,3:3:end],
                 tl1=trans[2,1:3:end], tl2=trans[2,2:3:end], tl3=trans[2,3:3:end], time_t=times[3,:],
                 bad=[MOI.SLOW_PROGRESS in statuses[frame][2:end] for frame in keys(statuses)])
@@ -57,16 +58,14 @@ for object_id in object_ids
 
     if isdefined(Main, :Infiltrator) Main.infiltrate(@__MODULE__, Base.@locals, @__FILE__, @__LINE__) end # 🚨 INFILTRATOR 🚨
     
-    angles = Float64.(reduce(hcat,collect(values(Δθs))))
-    times = reduce(hcat, collect(values(times)))
-    trans = reduce(hcat, collect(values( Δts )))
+    angles = collect(values(Δθs))
+    times = collect(values(times))
+    trans = collect(values( Δts ))
     
     # save
     bounds_obj = DataFrame(frame=collect(keys(Δθs)), id=object_id, time=times,
-                θx=angles[1,:], θy=angles[1,:], θz=angles[3,:], time_r=times[2,:],
-                tu1=trans[1,1:3:end], tu2=trans[1,2:3:end], tu3=trans[1,3:3:end],
-                tl1=trans[2,1:3:end], tl2=trans[2,2:3:end], tl3=trans[2,3:3:end], time_t=times[3,:],
-                bad=[MOI.SLOW_PROGRESS in statuses[frame][2:end] for frame in keys(statuses)])
+                θ=angles, t=trans, 
+                bad=[MOI.SLOW_PROGRESS in statuses[frame] for frame in keys(statuses)])
     global bounds_ransag
     bounds_ransag = [bounds_ransag; bounds_obj]
 end
@@ -83,10 +82,36 @@ serialize(save_path, bounds_dict)
 bounds_slem = bounds_dict["slem"]
 bounds_ransag = bounds_dict["ransag"]
 
-# runtime table
-df_slem = summarize_by(bounds_slem, :id, [:time_s, :time_r, :time_t], stats=("SLEM"=> x->mean(skipmissing(x)*1000)))
+# runtime comparison
+bounds_slem.time = bounds_slem[:, :time_s] + bounds_slem[:, :time_r] + bounds_slem[:, :time_t]
+df_slem = summarize_by(bounds_ransag, :id, [:time], stats=("SLEM"=> x->mean(skipmissing(x)*1000)))
 df_ransag = summarize_by(bounds_ransag, :id, [:time], stats=("RANS"=> x->mean(skipmissing(x)*1000)))
+runtime_results = [df_slem df_ransag]
 
-# rot error CDF
+df_mslem = summarize(bounds_ransag, [:time], stats=("SLEM"=> x->mean(skipmissing(x)*1000)))
+df_mransag = summarize(bounds_ransag, [:time], stats=("RANS"=> x->mean(skipmissing(x)*1000)))
+runtime_results = [runtime_results; df_mslem df_mransag]
 
-# trans bound CDF
+# runtime breakdown (S-Lemma)
+breakdown_slem = summarize_by(bounds_slem, :id, [:time_s, :time_r, :time_t, :time], stats=("SLEM"=> x->mean(skipmissing(x)*1000)))
+df_mslem = summarize(bounds_slem, [:time_s, :time_r, :time_t, :time], stats=("SLEM"=> x->mean(skipmissing(x)*1000)))
+breakdown_slem = [breakdown_slem; df_mslem]
+
+# rot bounds CDF 
+# TODO:
+# - add RANSAG, be consistent in frames (filter by RANSAG status too)
+# - Filter out object 10
+filterval = bounds_slem.bad .== false
+p_rcdf = Plots.plot(ylabel="CDF", title="Rotation Bounds")
+plot_cdf!(p_rcdf, bounds_slem.θx[filterval]; label="x")
+plot_cdf!(p_rcdf, bounds_slem.θy[filterval]; label="y")
+plot_cdf!(p_rcdf, bounds_slem.θz[filterval]; label="z")
+
+
+# trans range CDF (note this is 2x the radius)
+filterval = bounds_slem.bad .== false
+p_tcdf = Plots.plot(ylabel="CDF", title="Translation Range")
+plot_cdf!(p_tcdf, (bounds_slem.tu1 - bounds_slem.tl1)[filterval]; label="1")
+plot_cdf!(p_tcdf, (bounds_slem.tu2 - bounds_slem.tl2)[filterval]; label="2")
+plot_cdf!(p_tcdf, (bounds_slem.tu3 - bounds_slem.tl3)[filterval]; label="3")
+Plots.plot!(xscale=:log10)
