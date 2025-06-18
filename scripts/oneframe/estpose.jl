@@ -26,8 +26,8 @@ b = b[:, r .>= 0]
 r = r[r .>= 0]
 
 ## Pose estimation
-R_est, t_est, purse_empty = ransagpose(r, y, b, camK)
-# R_est, t_est, gap, SDP_status = gaussianpose(r, y, b, camK; silent=true, order=2)
+# R_est, t_est, purse_empty = ransagpose(r, y, b, camK)
+R_est, t_est, gap, SDP_status = gaussianpose(r, y, b, camK; silent=true, order=2)
 
 ## Check against gt
 gt = gt[frame][object_id]

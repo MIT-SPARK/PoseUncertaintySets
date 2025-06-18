@@ -68,11 +68,7 @@ function gaussianpose(r, y, b, camK; silent=true, order=2)
     # solve
     pop = [obj; ineq; eq]
     order = order
-    opt, sol, gap, data = cs_tssos_first(pop, vars, order, numeq=length(eq), TS="MD", QUIET=silent, solution=true, refine=false)
-
-    # if isdefined(Main, :Infiltrator)
-    #     Main.infiltrate(@__MODULE__, Base.@locals, @__FILE__, @__LINE__)
-    # end
+    opt, sol, data, gap, _ = cs_tssos_first(pop, vars, order, numeq=length(eq), TS="MD", QUIET=silent, solution=true, refine=false)
 
     ## Extract solution
     R_est = project2SO3(reshape(sol[1:9],3,3))

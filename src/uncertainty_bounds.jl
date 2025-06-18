@@ -163,7 +163,7 @@ function angular_bounds(center, H; silent=false, order=2)
 
         # Solve with TSSOS
         pop = [obj; ineq; eq]
-        opt, sol, gap, data = cs_tssos_first(pop, vars, order, numeq=length(eq), TS="MD", QUIET=silent, solution=true, refine=true)
+        opt, sol, data, gap = cs_tssos_first(pop, vars, order, numeq=length(eq), TS="MD", QUIET=silent, solution=true, refine=true)
 
         if !silent
             println("SDP status: $(data.SDP_status)")
@@ -245,7 +245,7 @@ function purse_bounds(center, q_front, q_backproj, q_eqs; order=2, silent=false)
         # solve
         pop = [obj; ineq; eq]
         order = order # supplementary material: they use second order
-        opt, sol, gap, data = cs_tssos_first(pop, vars, order, numeq=length(eq), TS=false, CS=false, QUIET=silent, solution=true, refine=false)
+        opt, sol, data, gap = cs_tssos_first(pop, vars, order, numeq=length(eq), TS=false, CS=false, QUIET=silent, solution=true, refine=false)
 
         # if isdefined(Main, :Infiltrator) Main.infiltrate(@__MODULE__, Base.@locals, @__FILE__, @__LINE__) end # 🚨 INFILTRATOR 🚨
 
@@ -327,7 +327,7 @@ function bounding_sphere(center, q_front, q_backproj, q_eqs; order=1, silent=fal
     # solve
     pop = [obj; ineq; eq]
     order = order
-    opt, sol, gap, data = cs_tssos_first(pop, vars, order, numeq=length(eq), TS=false, CS="MF", QUIET=silent, solution=true, refine=false)
+    opt, sol, data, gap = cs_tssos_first(pop, vars, order, numeq=length(eq), TS=false, CS="MF", QUIET=silent, solution=true, refine=false)
 
     # if isdefined(Main, :Infiltrator) Main.infiltrate(@__MODULE__, Base.@locals, @__FILE__, @__LINE__) end # 🚨 INFILTRATOR 🚨
 
@@ -393,7 +393,7 @@ function check_feasibility(center, H_t, q_front, q_backproj; order=1, silent=fal
     # solve
     pop = [obj; ineq; eq]
     order = order
-    opt, sol, gap, data = cs_tssos_first(pop, vars, order, numeq=length(eq), TS="MD", CS="MF", QUIET=silent, solution=true, refine=false)
+    opt, sol, data, gap = cs_tssos_first(pop, vars, order, numeq=length(eq), TS="MD", CS="MF", QUIET=silent, solution=true, refine=false)
 
     ineq_val = [i(vars=>sol) for i in ineq]
     eq_val = [e(vars=>sol) for e in eq]
@@ -490,7 +490,7 @@ function refine_bbox(center, H, H_t, q_front, q_backproj; mode=3, order=1, silen
             obj_cur = obj*mult
             pop = [obj_cur; ineq; eq]
             order = order
-            opt, sol, gap, data = cs_tssos_first(pop, vars, order, numeq=length(eq), TS="MD", CS="MF", QUIET=silent, solution=true, refine=false)
+            opt, sol, data, gap = cs_tssos_first(pop, vars, order, numeq=length(eq), TS="MD", CS="MF", QUIET=silent, solution=true, refine=false)
 
             if data.SDP_status != MOI.OPTIMAL
                 @warn "[refine_bbox] Status $(data.SDP_status) along axis $idx ($mult)"
