@@ -85,14 +85,14 @@ serialize(save_path, pose_dict)
 (solns_r, errs_r) = pose_dict["r"]
 
 # tightness
-df_g1 = summarize_by(errs_g1, :id, [:gap], stats=("G1"=> x->100*sum(filter(!ismissing, x).<=1e-3) / length(filter(!ismissing, x))))
-df_g2 = summarize_by(errs_g2, :id, [:gap], stats=("G2"=> x->100*sum(filter(!ismissing, x).<=1e-3) / length(filter(!ismissing, x))))
-df_r  = summarize_by(errs_r , :id, [:gap], stats=("RA"=> x->100*sum(filter(!ismissing, x).<=1e-3) / length(filter(!ismissing, x))))
+df_g1 = summarize_by(errs_g1, :id, [:gap], stats=("G1"=> x->100*sum(skipmissing(x).<=1e-3) / length(skipmissing(x))))
+df_g2 = summarize_by(errs_g2, :id, [:gap], stats=("G2"=> x->100*sum(skipmissing(x).<=1e-3) / length(skipmissing(x))))
+df_r  = summarize_by(errs_r , :id, [:gap], stats=("RA"=> x->100*sum(skipmissing(x).<=1e-3) / length(skipmissing(x))))
 gap_results = [df_g1 df_g2 df_r]
 
-df_mg1 = summarize(errs_g1, [:gap], stats=("G1"=> x->100*sum(filter(!ismissing, x).<=1e-3) / length(filter(!ismissing, x))))
-df_mg2 = summarize(errs_g2, [:gap], stats=("G2"=> x->100*sum(filter(!ismissing, x).<=1e-3) / length(filter(!ismissing, x))))
-df_mr  = summarize(errs_r , [:gap], stats=("RA"=> x->100*sum(filter(!ismissing, x).<=1e-3) / length(filter(!ismissing, x))))
+df_mg1 = summarize(errs_g1, [:gap], stats=("G1"=> x->100*sum(skipmissing(x).<=1e-3) / length(skipmissing(x))))
+df_mg2 = summarize(errs_g2, [:gap], stats=("G2"=> x->100*sum(skipmissing(x).<=1e-3) / length(skipmissing(x))))
+df_mr  = summarize(errs_r , [:gap], stats=("RA"=> x->100*sum(skipmissing(x).<=1e-3) / length(skipmissing(x))))
 gap_results = [gap_results; df_mg1 df_mg2 df_mr]
 
 # times
@@ -107,14 +107,14 @@ df_mr =  summarize(errs_r, [:time], stats=("RA"=> x->mean(filter(!ismissing,x)*1
 time_results = [time_results; df_mg1 df_mg2 df_mr]
 
 # projection errors
-df_g1 = summarize_by(errs_g1, :id, [:proj], stats=("G1"=> x->100*sum(filter(!ismissing, x).<=5.) / length(filter(!ismissing, x))))
-df_g2 = summarize_by(errs_g2, :id, [:proj], stats=("G2"=> x->100*sum(filter(!ismissing, x).<=5.) / length(filter(!ismissing, x))))
-df_r  = summarize_by(errs_r , :id, [:proj], stats=("RA"=> x->100*sum(filter(!ismissing, x).<=5.) / length(filter(!ismissing, x))))
+df_g1 = summarize_by(errs_g1, :id, [:proj], stats=("G1"=> x->100*sum(skipmissing(x).<=5.) / length(skipmissing(x))))
+df_g2 = summarize_by(errs_g2, :id, [:proj], stats=("G2"=> x->100*sum(skipmissing(x).<=5.) / length(skipmissing(x))))
+df_r  = summarize_by(errs_r , :id, [:proj], stats=("RA"=> x->100*sum(skipmissing(x).<=5.) / length(skipmissing(x))))
 proj_results = [df_g1 df_g2 df_r]
 
-df_mg1 = summarize(errs_g1, [:proj], stats=("G1"=> x->100*sum(filter(!ismissing, x).<=5.) / length(filter(!ismissing, x))))
-df_mg2 = summarize(errs_g2, [:proj], stats=("G2"=> x->100*sum(filter(!ismissing, x).<=5.) / length(filter(!ismissing, x))))
-df_mr  = summarize(errs_r , [:proj], stats=("RA"=> x->100*sum(filter(!ismissing, x).<=5.) / length(filter(!ismissing, x))))
+df_mg1 = summarize(errs_g1, [:proj], stats=("G1"=> x->100*sum(skipmissing(x).<=5.) / length(skipmissing(x))))
+df_mg2 = summarize(errs_g2, [:proj], stats=("G2"=> x->100*sum(skipmissing(x).<=5.) / length(skipmissing(x))))
+df_mr  = summarize(errs_r , [:proj], stats=("RA"=> x->100*sum(skipmissing(x).<=5.) / length(skipmissing(x))))
 proj_results = [proj_results; df_mg1 df_mg2 df_mr]
 
 tab = join_table("Proj" => proj_results, "Time" => time_results, "Gap" => gap_results)

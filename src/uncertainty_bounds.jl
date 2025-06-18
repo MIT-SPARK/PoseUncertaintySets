@@ -209,6 +209,8 @@ function purse_bounds(center, q_front, q_backproj, q_eqs; order=2, silent=false)
     trans_bound = 0.
     trans_gap = 1e6
 
+    status = Array{MOI.TerminationStatusCode}(undef, 2)
+
     for λ = [0, 1]
         # objective
         obj = -( λ*tr((R-Rc)'*(R-Rc)) + (1-λ)*(t-tc)'*(t-tc) )
@@ -251,6 +253,7 @@ function purse_bounds(center, q_front, q_backproj, q_eqs; order=2, silent=false)
             @warn "[purse_bounds] λ=$λ returned status $(data.SDP_status). Results may not be lower bound!"
             gap = -1
         end
+        status[λ+1] = data.SDP_status
 
         if λ == 1
             # |R₁ - R₂|^2_F = |R₁|^2_F + |R₂|^2_F - 2⟨R₁, R₂⟩
@@ -265,7 +268,7 @@ function purse_bounds(center, q_front, q_backproj, q_eqs; order=2, silent=false)
         end
     end
 
-    return trans_bound, trans_gap, ang_bound, ang_gap
+    return trans_bound, trans_gap, ang_bound, ang_gap, status
 end
 
 

@@ -84,23 +84,20 @@ Compute uncertainty bounds using the semidefinite relaxation from RANSAG.
 by Heng Yang and Marco Pavone
 
 # Returns
-- `Hs`: bounding ellipse matrices (Dict of matrices)
-- `Δθs`: angular error bounds (Dict of vectors)
-- `Δts`: translation error bounds (Dict of matrices)
+- `Δθs`: angular error bounds (Dict of Float64)
+- `Δts`: translation error bounds (Dict of Float64)
 - `statuses`: runtime of each stage (Dict of vectors)
-- `times`: runtime of each stage (Dict of vectors)
+- `times`: runtime of each stage (Dict of Float64)
 """
 function dataset_ransag_bounds(keypoint_data, pose_data, object_id)
     # setup
     camK = keypoint_data["K"]
     num_frames = length(keys(pose_data[object_id][1]))
 
-    
-    Hs = Dict{Int, Any}()
-    Δθs = Dict{Int, Any}()
-    Δts = Dict{Int, Any}()
+    Δθs = Dict{Int, Float64}()
+    Δts = Dict{Int, Float64}()
     statuses = Dict{Int, Any}()
-    times = Dict{Int, Any}()
+    times = Dict{Int, Float64}()
 
     println("Starting $num_frames frames...")
     for frame in sort(collect(keys(pose_data[object_id][1])))
@@ -121,25 +118,16 @@ function dataset_ransag_bounds(keypoint_data, pose_data, object_id)
         t_est = pose_data[object_id][2][frame]
         center = [vec(R_est); t_est]
 
-        # S-Lemma
-        out = @timed bounding_ellipse(center, y, r, b, camK; solver=Mosek.Optimizer, silent=true)
-        H, status_s = out.value
-        time_s = out.time - out.compile_time
-        # angular bounds
-        out = @timed angular_bounds(center, H; silent=true, order=2)
-        Δθ, status_r, gaps_r = out.value
-        time_r = out.time - out.compile_time
-        # translation bounds
-        out = @timed refine_bbox(center, H, y, r, b, camK; mode=3, order=1, silent=true)
-        Δt, gaps_t, status_t = out.value
-        time_t = out.time - out.compile_time
+        # PURSE bounds
+        out = @timed purse_bounds(center, y, r, b, camK; order=2, silent=true)
+        trans_bound, trans_gap, ang_bound, ang_gap, status = out.value
+        time = out.time - out.compile_time
         
         # save
-        Hs[frame] = H
-        Δθs[frame] = Δθ
-        Δts[frame] = Δt
-        statuses[frame] = [status_s; status_r; vec(status_t)]
-        times[frame] = [time_s; time_r; time_t]
+        Δθs[frame] = trans_bound
+        Δts[frame] = ang_bound
+        statuses[frame] = status
+        times[frame] = time
 
         # if isdefined(Main, :Infiltrator) Main.infiltrate(@__MODULE__, Base.@locals, @__FILE__, @__LINE__) end # 🚨 INFILTRATOR 🚨
 
@@ -148,5 +136,5 @@ function dataset_ransag_bounds(keypoint_data, pose_data, object_id)
         end
     end
 
-    return Hs, Δθs, Δts, statuses, times
+    return Δθs, Δts, statuses, times
 end

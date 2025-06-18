@@ -49,27 +49,44 @@ println("")
 
 ## RANSAG BASELINE
 println("\nStarting RANSAG Baseline...")
-bounds_slem = DataFrame()
+bounds_ransag = DataFrame()
 for object_id in object_ids
     println("\n------------$object_id------------")
     # solve!
-    Hs, Δθs, Δts, statuses, times = dataset_bounds(keypoint_data, solns_g2, object_id)
+    Δθs, Δts, statuses, times = dataset_ransag_bounds(keypoint_data, solns_g2, object_id)
 
+    if isdefined(Main, :Infiltrator) Main.infiltrate(@__MODULE__, Base.@locals, @__FILE__, @__LINE__) end # 🚨 INFILTRATOR 🚨
+    
     angles = Float64.(reduce(hcat,collect(values(Δθs))))
     times = reduce(hcat, collect(values(times)))
-    trans = reduce(hcat,collect(values(Δts)))
+    trans = reduce(hcat, collect(values( Δts )))
     
     # save
-    bounds_obj = DataFrame(frame=collect(keys(Hs)), id=object_id, time_s=times[1,:],
+    bounds_obj = DataFrame(frame=collect(keys(Δθs)), id=object_id, time=times,
                 θx=angles[1,:], θy=angles[1,:], θz=angles[3,:], time_r=times[2,:],
                 tu1=trans[1,1:3:end], tu2=trans[1,2:3:end], tu3=trans[1,3:3:end],
                 tl1=trans[2,1:3:end], tl2=trans[2,2:3:end], tl3=trans[2,3:3:end], time_t=times[3,:],
                 bad=[MOI.SLOW_PROGRESS in statuses[frame][2:end] for frame in keys(statuses)])
-    global bounds_slem
-    bounds_slem = [bounds_slem; bounds_obj]
+    global bounds_ransag
+    bounds_ransag = [bounds_ransag; bounds_obj]
 end
 println("")
 
 
 
 # save data for later
+bounds_dict = Dict("slem"=>bounds_slem, "ransag"=>bounds_ransag)
+serialize(save_path, bounds_dict)
+
+## Display results
+# bounds_dict = deserialize(save_path)
+bounds_slem = bounds_dict["slem"]
+bounds_ransag = bounds_dict["ransag"]
+
+# runtime table
+df_slem = summarize_by(bounds_slem, :id, [:time_s, :time_r, :time_t], stats=("SLEM"=> x->mean(skipmissing(x)*1000)))
+df_ransag = summarize_by(bounds_ransag, :id, [:time], stats=("RANS"=> x->mean(skipmissing(x)*1000)))
+
+# rot error CDF
+
+# trans bound CDF
