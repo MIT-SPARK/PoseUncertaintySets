@@ -24,6 +24,7 @@ function dataset_slem_bounds(keypoint_data, pose_data, object_id)
     Δts = Dict{Int, Any}()
     statuses = Dict{Int, Any}()
     times = Dict{Int, Any}()
+    gaps = Dict{Int, Any}()
 
     println("Starting $num_frames frames...")
     for frame in sort(collect(keys(pose_data[object_id][1])))
@@ -63,6 +64,7 @@ function dataset_slem_bounds(keypoint_data, pose_data, object_id)
         Δts[frame] = Δt
         statuses[frame] = [status_s; status_r; vec(status_t)]
         times[frame] = [time_s; time_r; time_t]
+        gaps[frame] = [gaps_r; vec(gaps_t)]
 
         # if isdefined(Main, :Infiltrator) Main.infiltrate(@__MODULE__, Base.@locals, @__FILE__, @__LINE__) end # 🚨 INFILTRATOR 🚨
 
@@ -71,7 +73,7 @@ function dataset_slem_bounds(keypoint_data, pose_data, object_id)
         end
     end
 
-    return Hs, Δθs, Δts, statuses, times
+    return Hs, Δθs, Δts, statuses, times, gaps
 end
 
 
@@ -98,6 +100,7 @@ function dataset_ransag_bounds(keypoint_data, pose_data, object_id)
     Δts = Dict{Int, Float64}()
     statuses = Dict{Int, Any}()
     times = Dict{Int, Float64}()
+    gaps = Dict{Int, Any}()
 
     println("Starting $num_frames frames...")
     for frame in sort(collect(keys(pose_data[object_id][1])))
@@ -124,10 +127,11 @@ function dataset_ransag_bounds(keypoint_data, pose_data, object_id)
         time = out.time - out.compile_time
         
         # save
-        Δθs[frame] = trans_bound
-        Δts[frame] = ang_bound
+        Δθs[frame] = ang_bound
+        Δts[frame] = trans_bound
         statuses[frame] = status
         times[frame] = time
+        gaps[frame] = [trans_gap; ang_gap]
 
         # if isdefined(Main, :Infiltrator) Main.infiltrate(@__MODULE__, Base.@locals, @__FILE__, @__LINE__) end # 🚨 INFILTRATOR 🚨
 
@@ -136,5 +140,5 @@ function dataset_ransag_bounds(keypoint_data, pose_data, object_id)
         end
     end
 
-    return Δθs, Δts, statuses, times
+    return Δθs, Δts, statuses, times, gaps
 end

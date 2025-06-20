@@ -9,8 +9,8 @@ import Plots
 using PoseUncertaintySets
 using SimpleRotations
 
-object_id = 9
-frame = 9
+object_id = 12
+frame = 701
 
 ## Load data
 keypoint_data, gt = load_keypoint_data(calibrate_l2, α=0.1)
@@ -32,9 +32,11 @@ R_est, t_est, gap, SDP_status = gaussianpose(r, y, b, camK; silent=true, order=2
 
 ## S-Lemma
 center = [vec(R_est); t_est]
-H, status = bounding_ellipse(center, y, r, b, camK; solver=Mosek.Optimizer, silent=true)
-# trans_bound, trans_gap, ang_bound, ang_gap = purse_bounds(center, y, r, b, camK; order=2, silent=false)
+# H, status = bounding_ellipse(center, y, r, b, camK; solver=Mosek.Optimizer, silent=true)
+trans_bound, trans_gap, ang_bound, ang_gap, status = purse_bounds(center, y, r, b, camK; order=2, silent=false)
 # rad, status2 = bounding_sphere(center, y, r, b, camK; order=1, silent=false)
+
+error("Lorenzo was here")
 
 ## Angular Bounds
 # Δθs, status_angbounds, gaps = angular_bounds(center, H)

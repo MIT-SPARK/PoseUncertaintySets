@@ -223,9 +223,10 @@ function purse_bounds(center, q_front, q_backproj, q_eqs; order=2, silent=false)
 
         # PURSE constraints
         X = [vars; 1]*[vars; 1]'
+        slack = 1e-3
         for (i,q) in enumerate(q_front)
             Q = Symmetric([q.H  q.c;  q.c'  q.d])
-            push!(ineq, -tr(Q*X))
+            push!(ineq, -tr(Q*X) - slack)
         end
         for (i,q) in enumerate(q_backproj)
             Q = Symmetric([q.H  q.c;  q.c'  q.d])
@@ -256,14 +257,20 @@ function purse_bounds(center, q_front, q_backproj, q_eqs; order=2, silent=false)
         status[λ+1] = data.SDP_status
 
         if λ == 1
+            # rotation case
             # |R₁ - R₂|^2_F = |R₁|^2_F + |R₂|^2_F - 2⟨R₁, R₂⟩
             # ⟨R₁, R₂⟩ = (6 - |R₁ - R₂|^2_F) / 2
             frob_norm = -opt
-            inner_prod = (6 - frob_norm)/2
-            ang_bound = SimpleRotations.robust_acos((inner_prod - 1) / 2)*180/π
+            if abs(1 - frob_norm/4) > 1
+                ang_bound = 180.
+            else
+                ang_bound = SimpleRotations.robust_acos(1 - frob_norm/4)*180/π
+            end
             ang_gap = gap
         else
-            trans_bound = -opt
+            # translation case
+            # opt = \|t - tc\|^2_2
+            trans_bound = sqrt(abs(-opt))
             trans_gap = gap
         end
     end
