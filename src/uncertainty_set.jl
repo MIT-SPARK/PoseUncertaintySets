@@ -199,3 +199,149 @@ function SO3_constraints()
     end
     return q_eqs
 end
+
+
+## QUATERNIONS
+
+"""
+    Ω1(q)
+
+Defined by `a ⊗ b = Ω1(a)*b` where `a,b` are quaternions.
+
+Automatically adds leading 0 if dimension is 3.
+
+Also satisfies `Ω1(a^{-1}) = Ω1(a)^T`.
+"""
+function Ω1(q)
+    if size(q)[1] == 3
+        q = [0; q]
+    end
+    [q[1] -q[2] -q[3] -q[4];
+     q[2]  q[1] -q[4]  q[3];
+     q[3]  q[4]  q[1] -q[2];
+     q[4] -q[3]  q[2]  q[1]]
+end
+
+"""
+    Ω2(q)
+
+Defined by `a ⊗ b = Ω2(b)*a` where `a,b` are quaternions.
+
+Automatically adds leading 0 if dimension is 3.
+
+Also satisfies `Ω2(a^{-1}) = Ω2(a)^T`.
+"""
+function Ω2(q)
+    if size(q)[1] == 3
+        q = [0; q]
+    end
+    [q[1] -q[2] -q[3] -q[4];
+     q[2]  q[1]  q[4] -q[3];
+     q[3] -q[4]  q[1]  q[2];
+     q[4]  q[3] -q[2]  q[1]]
+end
+
+
+"""
+    [q_front, q_backproj] = uncertaintyset_linf_q(y, r, b, K)
+
+Generate pose uncertainty set (linf norm) from problem data.
+Expressed in the quaternion form `q`.
+
+# Arguments
+- `y`: pixel keypoints [3 x N] (homogenized)
+- `r`: l2 radii for each keypoint [N]
+- `b`: 3D canonical keypoint frame, meters [3 x N]
+- `K`: camera calibration matrix [3 x 3]
+
+# Returns
+- `q_front`: list of chirality constraints ≤ 0 [N]
+- `q_backproj`: list of backprojection constraints ≤ 0 [4*N]
+"""
+function uncertaintyset_linf_q(y, r, b, K)
+    N = size(y,2)
+    q_front = Vector{Quadratic}(undef, 0)
+    q_backproj = Vector{Quadratic}(undef, 0)
+
+    e3 = [0;0;1]
+    for i = 1:N
+        # front of camera
+        H = zeros(7,7)
+        H[1:4, 1:4] = -(-Ω2(K'*e3)*Ω1(b[:,i]))
+        c = -[zeros(4); K'*e3]
+        s = 0.
+        push!(q_front, Quadratic(H, c, s))
+        
+        # backprojection (linf norm)
+        iy3 = (I - y[:,i]*e3')
+        for j = 1:2
+            ej = zeros(3); ej[j] = 1
+
+            H = zeros(7,7)
+            H[1:4, 1:4] = (-Ω2(iy3'*ej)*Ω1(b[:,i])) - r[i]*(-Ω2(K'*e3)*Ω1(b[:,i]))
+            c = [zeros(4); (ej'*iy3*K)' - r[i]*(e3'*K)']
+            s = 0.
+            push!(q_backproj, Quadratic(H, c, s))
+
+            # negative term
+            H = zeros(7,7)
+            H[1:4, 1:4] = -(-Ω2(iy3'*ej)*Ω1(b[:,i])) - r[i]*(-Ω2(K'*e3)*Ω1(b[:,i]))
+            c = [zeros(4); -(ej'*iy3*K)' - r[i]*(e3'*K)']
+            s = 0.
+            push!(q_backproj, Quadratic(H, c, s))
+        end
+    end
+
+    ## TODO: could add constraint on sign of any element of q to remove ambiguity
+    begin
+        # add this to q_front for lack of a better place
+        H = zeros(7,7)
+        c = [1; zeros(6)]
+        s = 0.
+        # q₁ ≤ 0
+        push!(q_front, Quadratic(H, c, s))
+
+        # bound constraints
+        c = zeros(7); c[1] = -1 # q1 ≥ -1
+        push!(q_front, Quadratic(zeros(7,7), c, -1))
+        c = zeros(7); c[1] = 1 # q1 ≤ 1
+        push!(q_front, Quadratic(zeros(7,7), c, -1))
+        H = zeros(7,7); H[1,1] = 1 # q1^2 ≤ 1
+        push!(q_front, Quadratic(H, zeros(7), -1))
+
+        c = zeros(7); c[2] = -1 # q2 ≥ -1
+        push!(q_front, Quadratic(zeros(7,7), c, -1))
+        c = zeros(7); c[2] = 1 # q2 ≤ 1
+        push!(q_front, Quadratic(zeros(7,7), c, -1))
+        H = zeros(7,7); H[2,2] = 1 # q2^2 ≤ 1
+        push!(q_front, Quadratic(H, zeros(7), -1))
+
+        c = zeros(7); c[3] = -1 # q3 ≥ -1
+        push!(q_front, Quadratic(zeros(7,7), c, -1))
+        c = zeros(7); c[3] = 1 # q3 ≤ 1
+        push!(q_front, Quadratic(zeros(7,7), c, -1))
+        H = zeros(7,7); H[3,3] = 1 # q3^2 ≤ 1
+        push!(q_front, Quadratic(H, zeros(7), -1))
+
+        c = zeros(7); c[4] = -1 # q4 ≥ -1
+        push!(q_front, Quadratic(zeros(7,7), c, -1))
+        c = zeros(7); c[4] = 1 # q4 ≤ 1
+        push!(q_front, Quadratic(zeros(7,7), c, -1))
+        H = zeros(7,7); H[4,4] = 1 # q4^2 ≤ 1
+        push!(q_front, Quadratic(H, zeros(7), -1))
+    end
+
+    return q_front, q_backproj
+end
+
+## SO(3) constraints in quadratic form
+function q_constraints()
+    q_eqs = Vector{Quadratic}(undef, 0)
+    # q'*q = 1
+    H = zeros(7,7)
+    H[1:4,1:4] = diagm(ones(4)) 
+    # q₁² + q₂² + q₃² + q₄² - 1 = 0
+    q = Quadratic(H, zeros(7), -1.)
+    push!(q_eqs, q)
+    return q_eqs
+end

@@ -16,6 +16,7 @@ Returns ellipse matrix `H`, optimization status.
 - `b`: 3D canonical keypoint frame, meters [3 x N]
 - `camK`: camera calibration matrix [3 x 3]
 ## Optional Arguments
+- `p=2`: what calibration norm to use (`p=Inf` is an option but does not work)
 - `solver=Clarabel.Optimizer`: what solver to use
 - `silent=false`: should we print things?
 
@@ -23,9 +24,19 @@ Returns ellipse matrix `H`, optimization status.
 - `H`: PSD ellipse matrix
 - `status`: termination status of optimization
 """
-function bounding_ellipse(center, y, r, b, camK; solver=Clarabel.Optimizer, silent=false)
-    q_front, q_backproj = uncertaintyset_l2(y, r, b, camK)
-    q_eqs = SO3_constraints()
+function bounding_ellipse(center, y, r, b, camK; p=2, solver=Clarabel.Optimizer, silent=false)
+    (p == 2 || p == Inf) || error("only accepts `p=2` or `p=Inf`")
+
+    if p == 2
+        q_front, q_backproj = uncertaintyset_l2(y, r, b, camK)
+        q_eqs = SO3_constraints()
+    else
+        # does not work
+        # q_front, q_backproj = uncertaintyset_linf_R(y, r, b, camK)
+        # q_eqs = SO3_constraints()
+        q_front, q_backproj = uncertaintyset_linf_q(y, r, b, camK)
+        q_eqs = q_constraints()
+    end
 
     return bounding_ellipse(center, q_front, q_backproj, q_eqs; solver=solver, silent=silent)
 end
@@ -43,7 +54,8 @@ function bounding_ellipse(center, q_front, q_backproj, q_eqs; solver=Clarabel.Op
     @variable(model, η[1:length(q_eqs)])
 
     # full 12 x 12
-    @variable(model, H0[1:12,1:12] ∈ PSDCone())
+    dim = size(q_front[1].H,1)
+    @variable(model, H0[1:dim,1:dim] ∈ PSDCone())
 
     # rotation and position independent
     # @variable(model, H0_r[1:9,1:9] ∈ PSDCone())
@@ -59,7 +71,7 @@ function bounding_ellipse(center, q_front, q_backproj, q_eqs; solver=Clarabel.Op
     # objective: max logdet(H0)
     # use auxillary variable
     @objective(model, Max, log_det_H0)
-    @constraint(model, [log_det_H0; 1; vec(H0)] in MOI.LogDetConeSquare(12))
+    @constraint(model, [log_det_H0; 1; vec(H0)] in MOI.LogDetConeSquare(dim))
 
     # build and constrain M
     # q0 = x'*H0*x + 2(-H0*c)'*x + c'*H0*c <= 1
@@ -486,5 +498,3 @@ function refine_bbox(center, H, H_t, q_front, q_backproj; mode=3, order=1, silen
 
     return bounds, gaps, statuses
 end
-
-# NEXT: add chirality
