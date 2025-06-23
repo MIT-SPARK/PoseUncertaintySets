@@ -27,33 +27,6 @@ function bounding_ellipse(center, y, r, b, camK; solver=Clarabel.Optimizer, sile
     q_front, q_backproj = uncertaintyset_l2(y, r, b, camK)
     q_eqs = SO3_constraints()
 
-    # # Add redundant constraints (outer product of chirality constraints)
-    # N = size(y,2)
-    # for i = 1:N
-    #     for j = 1:N
-    #         if i == j
-    #             continue
-    #         end
-
-    #         ikr_bK = kron(b[:,i]', camK)
-    #         jkr_bK = kron(b[:,j]', camK)
-    #         e3 = [0;0;1]
-
-    #         H = zeros(12,12)
-    #         H[1:9,1:9]  = 0.5*ikr_bK'*e3*e3'*jkr_bK
-    #         H[1:9,1:9] += 0.5*jkr_bK'*e3*e3'*ikr_bK
-    #         H[10:12,10:12] = camK'*e3*e3'*camK
-    #         H[1:9,10:12]  = 0.5*ikr_bK'*e3*e3'*camK
-    #         H[1:9,10:12] += 0.5*jkr_bK'*e3*e3'*camK
-    #         H[10:12,1:9] = H[1:9,10:12]'
-    #         H = -H
-    #         # if isdefined(Main, :Infiltrator) Main.infiltrate(@__MODULE__, Base.@locals, @__FILE__, @__LINE__) end # 🚨 INFILTRATOR 🚨
-    #         c = zeros(12)
-    #         s = 0.
-    #         push!(q_front, Quadratic(H, c, s))
-    #     end
-    # end
-
     return bounding_ellipse(center, q_front, q_backproj, q_eqs; solver=solver, silent=silent)
 end
 

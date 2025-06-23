@@ -1,7 +1,7 @@
 ## Functions to load data
 # Lorenzo Shaikewitz, 6/13/2025
 
-function load_keypoint_data(cal_fn=calibrate_l2; α=0.1, path_kpts3d="../data/kpts3d.json", 
+function load_keypoint_data(cal_fn=calibrate_lp; p=2, α=0.1, path_kpts3d="../data/kpts3d.json", 
         parent_cal="../data/bop/lmo/test_bop19/000002", parent_test="../data/bop/lmo/test_all/000002",
         detections_cal_path="../data/detections_lmo_cal.json", detections_test_path="../data/detections_lmo_test.json")
     
@@ -15,7 +15,7 @@ function load_keypoint_data(cal_fn=calibrate_l2; α=0.1, path_kpts3d="../data/kp
     kpts_test = load_raw_keypoints(detections_test_path)
 
     # calibrate!
-    radii, scores, ns = cal_fn(kpts_cal, gt_cal, camK, kpts_test, kpt_lib, α)
+    radii, scores, ns = cal_fn(kpts_cal, gt_cal, camK, kpts_test, kpt_lib, p, α)
 
     data = Dict("K"=>camK, "r"=>radii, "y"=>kpts_test, "b"=>kpt_lib)
     return data, gt_test
@@ -23,11 +23,11 @@ end
 
 
 """
-    calibrate_l2(cal_kpts, cal_gt, test_kpts, kpt_lib)
+    calibrate_lp(cal_kpts, cal_gt, test_kpts, kpt_lib, p=2, α=0.1)
 
-Calibrate with uncertainty-weighted l2 loss.
+Calibrate with uncertainty-weighted lp loss at confidence `α`.
 """
-function calibrate_l2(kpts_cal, gt_cal, camK, kpts_test, kpt_lib, α=0.1; conf_thresh=0.0)
+function calibrate_lp(kpts_cal, gt_cal, camK, kpts_test, kpt_lib, p=2, α=0.1; conf_thresh=0.0)
     scores = Dict(k => Any[] for k in keys(kpt_lib))
 
     for (img_id, kpts_cal_all) in kpts_cal
@@ -39,8 +39,8 @@ function calibrate_l2(kpts_cal, gt_cal, camK, kpts_test, kpt_lib, α=0.1; conf_t
             kpts_gt = camK*(R*kpt_lib[obj] .+ t)
             kpts_gt = reduce(hcat,eachcol(kpts_gt[1:2,:]) ./ kpts_gt[3,:])
 
-            # calibrate
-            dist = norm.(eachcol(kpts_gt - kpts_cal_obj[1:2,:]))
+            # compute scores
+            dist = norm.(eachcol(kpts_gt - kpts_cal_obj[1:2,:]), p)
             score = dist .* kpts_cal_obj[3,:]
 
             # throw out low confidence detections
@@ -95,7 +95,7 @@ function calibrate_l2(kpts_cal, gt_cal, camK, kpts_test, kpt_lib, α=0.1; conf_t
     #     kpts_gt = camK*(R*kpt_lib[5] .+ t)
     #     kpts_gt = reduce(hcat,eachcol(kpts_gt[1:2,:]) ./ kpts_gt[3,:])
         
-    #     dist = norm.(eachcol(kpts_gt - kpts_test[img_id][5][1:2,:]))
+    #     dist = norm.(eachcol(kpts_gt - kpts_test[img_id][5][1:2,:]), p)
     #     cov5 += dist .< r[5]
     # end
     # display(cov5 ./ ns[5])

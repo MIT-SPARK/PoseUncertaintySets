@@ -18,7 +18,7 @@ object_ids = [1,5,6,9,8,10,11,12]
 # cadnames = Dict(1=>"ape", 5=>"can", 6=>"cat", 8=>"driller", 9=>"duck", 10=>"eggbox", 11=>"glue", 12=>"holepuncher")
 
 ## Load data
-keypoint_data, gt = load_keypoint_data(calibrate_l2, α=α)
+keypoint_data, gt = load_keypoint_data(calibrate_lp, p=2, α=α)
 
 pose_dict = deserialize(keypoint_path)
 (solns_g1, errs_g1) = pose_dict["g1"]
@@ -90,20 +90,20 @@ df_slem = summarize_by(bounds_slem, :id, [:time], stats=("SLEM"=> x->mean(skipmi
 df_ransag = summarize_by(bounds_ransag, :id, [:time], stats=("RANS"=> x->mean(skipmissing(x))*1000))
 runtime_results = [df_slem df_ransag]
 
-df_mslem = summarize(bounds_slem, [:time], stats=("SLEM"=> x->mean(skipmissing(x)*1000)))
-df_mransag = summarize(bounds_ransag, [:time], stats=("RANS"=> x->mean(skipmissing(x)*1000)))
+df_mslem = summarize(bounds_slem, [:time], stats=("SLEM"=> x->mean(skipmissing(x))*1000))
+df_mransag = summarize(bounds_ransag, [:time], stats=("RANS"=> x->mean(skipmissing(x))*1000))
 runtime_results = [runtime_results; df_mslem df_mransag]
 
 # runtime breakdown (S-Lemma)
-breakdown_slem = summarize_by(bounds_slem, :id, [:time_s, :time_r, :time_t, :time], stats=("SLEM"=> x->mean(skipmissing(x)*1000)))
-df_mslem = summarize(bounds_slem, [:time_s, :time_r, :time_t, :time], stats=("SLEM"=> x->mean(skipmissing(x)*1000)))
+breakdown_slem = summarize_by(bounds_slem, :id, [:time_s, :time_r, :time_t, :time], stats=("SLEM"=> x->mean(skipmissing(x))*1000))
+df_mslem = summarize(bounds_slem, [:time_s, :time_r, :time_t, :time], stats=("SLEM"=> x->mean(skipmissing(x))*1000))
 breakdown_slem = [breakdown_slem; df_mslem]
 
 # rot bounds CDF 
 # TODO:
 # - add RANSAG, be consistent in frames (filter by RANSAG status too)
 # - Filter out object 10
-filterval = bounds_slem.bad .== false .&& bounds_ransag.bad .== false
+filterval = bounds_slem.optimal .== true .&& bounds_ransag.optimal .== true
 p_rcdf = Plots.plot(ylabel="CDF", title="Rotation Bounds")
 plot_cdf!(p_rcdf, bounds_slem.θx[filterval]; label="x")
 plot_cdf!(p_rcdf, bounds_slem.θy[filterval]; label="y")

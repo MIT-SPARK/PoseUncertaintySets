@@ -9,11 +9,11 @@ import Plots
 using PoseUncertaintySets
 using SimpleRotations
 
-object_id = 12
-frame = 1099
+object_id = 5
+frame = 11
 
 ## Load data
-keypoint_data, gt = load_keypoint_data(calibrate_lp, p=2, α=0.1)
+keypoint_data, gt = load_keypoint_data(calibrate_lp, p=Inf, α=0.1)
 camK = keypoint_data["K"]
 
 r = keypoint_data["r"][frame][object_id]

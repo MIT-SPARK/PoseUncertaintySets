@@ -56,6 +56,63 @@ function uncertaintyset_l2(y, r, b, K)
 end
 
 
+"""
+    [q_front, q_backproj] = uncertaintyset_linf_R(y, r, b, K)
+
+Generate pose uncertainty set (linf norm) from problem data.
+These are exclusively linear constraints when expressed in the variable `R`.
+
+# Arguments
+- `y`: pixel keypoints [3 x N] (homogenized)
+- `r`: l2 radii for each keypoint [N]
+- `b`: 3D canonical keypoint frame, meters [3 x N]
+- `K`: camera calibration matrix [3 x 3]
+
+# Returns
+- `q_front`: list of chirality constraints ≤ 0 [N]
+- `q_backproj`: list of backprojection constraints ≤ 0 [4*N]
+"""
+function uncertaintyset_linf_R(y, r, b, K)
+    N = size(y,2)
+    q_front = Vector{Quadratic}(undef, 0)
+    q_backproj = Vector{Quadratic}(undef, 0)
+
+    e3 = [0;0;1]
+    for i = 1:N
+        iy3 = (I - y[:,i]*e3')
+        kr_bK = kron(b[:,i]', K)
+
+        # front of camera
+        H = zeros(12,12)
+        c = -[e3'*kr_bK e3'*K]'
+        s = 0.
+        push!(q_front, Quadratic(H, c[:,1], s))
+        
+        # backprojection (linf norm)
+        for j = 1:2
+            ej = zeros(3); ej[j] = 1
+
+            H = zeros(12,12)
+            c = zeros(12)
+            c[1:9] = ej'*iy3*kr_bK - r[i]*e3'*kr_bK
+            c[10:12] = ej'*iy3*K   - r[i]*e3'*K
+            s = 0.
+            push!(q_backproj, Quadratic(H, c, s))
+
+            # negative term
+            H = zeros(12,12)
+            c = zeros(12)
+            c[1:9] = -ej'*iy3*kr_bK - r[i]*e3'*kr_bK
+            c[10:12] = -ej'*iy3*K   - r[i]*e3'*K
+            s = 0.
+            push!(q_backproj, Quadratic(H, c, s))
+        end
+    end
+
+    return q_front, q_backproj
+end
+
+
 ## SO(3) constraints in quadratic form
 function SO3_constraints()
     q_eqs = Vector{Quadratic}(undef, 0)
