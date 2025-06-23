@@ -293,43 +293,43 @@ function uncertaintyset_linf_q(y, r, b, K)
     end
 
     ## TODO: could add constraint on sign of any element of q to remove ambiguity
-    begin
-        # add this to q_front for lack of a better place
-        H = zeros(7,7)
-        c = [1; zeros(6)]
-        s = 0.
-        # q₁ ≤ 0
-        push!(q_front, Quadratic(H, c, s))
+    # begin
+    #     # add this to q_front for lack of a better place
+    #     H = zeros(7,7)
+    #     c = [1; zeros(6)]
+    #     s = 0.
+    #     # q₁ ≤ 0
+    #     push!(q_front, Quadratic(H, c, s))
 
-        # bound constraints
-        c = zeros(7); c[1] = -1 # q1 ≥ -1
-        push!(q_front, Quadratic(zeros(7,7), c, -1))
-        c = zeros(7); c[1] = 1 # q1 ≤ 1
-        push!(q_front, Quadratic(zeros(7,7), c, -1))
-        H = zeros(7,7); H[1,1] = 1 # q1^2 ≤ 1
-        push!(q_front, Quadratic(H, zeros(7), -1))
+    #     # bound constraints
+    #     c = zeros(7); c[1] = -1 # q1 ≥ -1
+    #     push!(q_front, Quadratic(zeros(7,7), c, -1))
+    #     c = zeros(7); c[1] = 1 # q1 ≤ 1
+    #     push!(q_front, Quadratic(zeros(7,7), c, -1))
+    #     H = zeros(7,7); H[1,1] = 1 # q1^2 ≤ 1
+    #     push!(q_front, Quadratic(H, zeros(7), -1))
 
-        c = zeros(7); c[2] = -1 # q2 ≥ -1
-        push!(q_front, Quadratic(zeros(7,7), c, -1))
-        c = zeros(7); c[2] = 1 # q2 ≤ 1
-        push!(q_front, Quadratic(zeros(7,7), c, -1))
-        H = zeros(7,7); H[2,2] = 1 # q2^2 ≤ 1
-        push!(q_front, Quadratic(H, zeros(7), -1))
+    #     c = zeros(7); c[2] = -1 # q2 ≥ -1
+    #     push!(q_front, Quadratic(zeros(7,7), c, -1))
+    #     c = zeros(7); c[2] = 1 # q2 ≤ 1
+    #     push!(q_front, Quadratic(zeros(7,7), c, -1))
+    #     H = zeros(7,7); H[2,2] = 1 # q2^2 ≤ 1
+    #     push!(q_front, Quadratic(H, zeros(7), -1))
 
-        c = zeros(7); c[3] = -1 # q3 ≥ -1
-        push!(q_front, Quadratic(zeros(7,7), c, -1))
-        c = zeros(7); c[3] = 1 # q3 ≤ 1
-        push!(q_front, Quadratic(zeros(7,7), c, -1))
-        H = zeros(7,7); H[3,3] = 1 # q3^2 ≤ 1
-        push!(q_front, Quadratic(H, zeros(7), -1))
+    #     c = zeros(7); c[3] = -1 # q3 ≥ -1
+    #     push!(q_front, Quadratic(zeros(7,7), c, -1))
+    #     c = zeros(7); c[3] = 1 # q3 ≤ 1
+    #     push!(q_front, Quadratic(zeros(7,7), c, -1))
+    #     H = zeros(7,7); H[3,3] = 1 # q3^2 ≤ 1
+    #     push!(q_front, Quadratic(H, zeros(7), -1))
 
-        c = zeros(7); c[4] = -1 # q4 ≥ -1
-        push!(q_front, Quadratic(zeros(7,7), c, -1))
-        c = zeros(7); c[4] = 1 # q4 ≤ 1
-        push!(q_front, Quadratic(zeros(7,7), c, -1))
-        H = zeros(7,7); H[4,4] = 1 # q4^2 ≤ 1
-        push!(q_front, Quadratic(H, zeros(7), -1))
-    end
+    #     c = zeros(7); c[4] = -1 # q4 ≥ -1
+    #     push!(q_front, Quadratic(zeros(7,7), c, -1))
+    #     c = zeros(7); c[4] = 1 # q4 ≤ 1
+    #     push!(q_front, Quadratic(zeros(7,7), c, -1))
+    #     H = zeros(7,7); H[4,4] = 1 # q4^2 ≤ 1
+    #     push!(q_front, Quadratic(H, zeros(7), -1))
+    # end
 
     return q_front, q_backproj
 end

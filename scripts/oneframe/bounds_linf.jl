@@ -10,7 +10,7 @@ using PoseUncertaintySets
 using SimpleRotations
 
 object_id = 5
-frame = 11
+frame = 12
 
 ## Load data
 keypoint_data, gt = load_keypoint_data(calibrate_lp, p=Inf, α=0.1)
@@ -33,6 +33,7 @@ R_est, t_est, gap, SDP_status = gaussianpose(r, y, b, camK; silent=true, order=2
 ## S-Lemma
 center = [rotm2quat(R_est); t_est]
 Hinf, status = bounding_ellipse(center, y, r, b, camK; p=Inf, solver=Mosek.Optimizer, silent=false)
+rad, status2 = bounding_sphere(center, y, r, b, camK; p=Inf, order=2, silent=false)
 center = [vec(R_est); t_est]
 H2, status = bounding_ellipse(center, y, r, b, camK; p=2, solver=Mosek.Optimizer, silent=true)
 

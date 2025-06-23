@@ -271,9 +271,19 @@ Returns radius of sphere and SDP status.
 
 Why solve for a joint bounding sphere? The RANSAG approach makes much more sense.
 """
-function bounding_sphere(center, y, r, b, camK; order=1, silent=false)
-    q_front, q_backproj = uncertaintyset_l2(y, r, b, camK)
-    q_eqs = SO3_constraints()
+function bounding_sphere(center, y, r, b, camK; p=2, order=1, silent=false)
+    (p == 2 || p == Inf) || error("only accepts `p=2` or `p=Inf`")
+
+    if p == 2
+        q_front, q_backproj = uncertaintyset_l2(y, r, b, camK)
+        q_eqs = SO3_constraints()
+    else
+        # does not work
+        # q_front, q_backproj = uncertaintyset_linf_R(y, r, b, camK)
+        # q_eqs = SO3_constraints()
+        q_front, q_backproj = uncertaintyset_linf_q(y, r, b, camK)
+        q_eqs = q_constraints()
+    end
 
     return bounding_sphere(center, q_front, q_backproj, q_eqs; order=order, silent=silent)
 end
@@ -281,10 +291,8 @@ end
 
 function bounding_sphere(center, q_front, q_backproj, q_eqs; order=1, silent=false)
 
-    Rc = reshape(center[1:9],3,3)
-    tc = center[10:12]
-
-    @polyvar R[1:3,1:3]
+    # @polyvar R[1:3,1:3]
+    @polyvar R[1:4] # quaternion
     @polyvar t[1:3]
     vars = [vec(R); t]
 
@@ -320,8 +328,6 @@ function bounding_sphere(center, q_front, q_backproj, q_eqs; order=1, silent=fal
     pop = [obj; ineq; eq]
     order = order
     opt, sol, data, gap = cs_tssos_first(pop, vars, order, numeq=length(eq), TS=false, CS="MF", QUIET=silent, solution=true, refine=false)
-
-    # if isdefined(Main, :Infiltrator) Main.infiltrate(@__MODULE__, Base.@locals, @__FILE__, @__LINE__) end # 🚨 INFILTRATOR 🚨
 
     if data.SDP_status != MOI.OPTIMAL
         @warn "[bounding_sphere] Returned status $(data.SDP_status). Results may not be lower bound!"
