@@ -2,7 +2,7 @@
 # Lorenzo Shaikewitz, 6/4/2025
 
 """
-    gaussianpose(r, y, b, camK; silent=true, order=2)
+    gaussianpose(y, r, b, camK; silent=true, order=2)
 
 Certifiable PnP with Gaussian noise assumption.
 
@@ -19,7 +19,7 @@ Certifiable PnP with Gaussian noise assumption.
 - `gap`: suboptimality gap
 - `status`: SDP solve status
 """
-function gaussianpose(r, y, b, camK; silent=true, order=2)
+function gaussianpose(y, r, b, camK; silent=true, order=2)
     # objective is scale invariant
     # α_quantile = quantile(Normal(), 1-α)
     # σ = r / α_quantile
@@ -78,7 +78,7 @@ function gaussianpose(r, y, b, camK; silent=true, order=2)
 end
 
 """
-    ransagpose(r, y, b, camK; T=1000)
+    ransagpose(y, r, b, camK; T=1000)
 
 Implements the sampling-based P3P algorithm RANSAG from the paper
 "Object Pose Estimation with Statistical Guarantees: Conformal
@@ -96,7 +96,7 @@ Keypoint Detection and Geometric Uncertainty Propagation"
 - `t`: translation estimate
 - `purse_empty`: true if no samples within PURSE found via P3P
 """
-function ransagpose(r, y, b, camK; T=1000)
+function ransagpose(y, r, b, camK; T=1000)
     N = size(r,1)
 
     # set of feasible poses found
@@ -156,7 +156,7 @@ end
 
 
 """
-    gaussianpose_sdplr(r, y, b, camK; silent=true)
+    gaussianpose_sdplr(y, r, b, camK; silent=true)
 
 Certifiable PnP with Gaussian noise assumption.
 
@@ -174,7 +174,7 @@ JuMP version just for fun. Not recommended.
 - `gap`: suboptimality gap
 - `status`: SDP solve status
 """
-function gaussianpose_sdplr(r, y, b, camK; silent=true)
+function gaussianpose_sdplr(y, r, b, camK; silent=true)
     # objective is scale invariant
     # α_quantile = quantile(Normal(), 1-α)
     # σ = r / α_quantile
@@ -182,6 +182,9 @@ function gaussianpose_sdplr(r, y, b, camK; silent=true)
 
     N = size(r,1)
     model = Model(SDPLR.Optimizer)
+    if silent
+        set_silent(model)
+    end
     @variable(model, X[1:10,1:10] ∈ PSDCone()) # vec(R)*vec(R)'
 
     # eliminate t
@@ -232,4 +235,92 @@ function gaussianpose_sdplr(r, y, b, camK; silent=true)
     t_est = t_mult*vec(R_est)
 
     return R_est, t_est
+end
+
+
+
+"""
+    R_est, t_est, tight, status = maxmarginpose(y, r, b, camK; lowerb=-1, upperb=10, silent=false)
+
+First order relaxation with l2 form of pose uncertainty set.
+
+Returns pose estimate, optimization status, solution data, JuMP model
+
+# Arguments
+- `q_front`: list of quadratics ≤ 0 for chirality constraints
+- `q_backproj`: list of quadratics ≤ 0 for backproj constraints
+- `q_eqs`: list of quadratics = 0 for SO(3) constraints
+## Optional Arguments
+- `lowerb=-1`: lower bound the margins
+- `upperb=10`: upper bound the margins
+- `silent=false`: should we print things?
+"""
+function maxmarginpose(y, r, b, camK; lowerb=-1, upperb=10, silent=false)
+    q_front, q_backproj = uncertaintyset_l2(y, r, b, camK)
+    q_eqs = SO3_constraints()
+
+    return maxmarginpose(q_front, q_backproj, q_eqs; lowerb=lowerb, upperb=upperb, silent=silent)
+end
+
+function maxmarginpose(q_front, q_backproj, q_eqs; lowerb=-1, upperb=10, silent=false)
+    N = length(q_backproj)
+
+    model = Model(Clarabel.Optimizer)
+    if silent
+        set_silent(model)
+    end
+    @variable(model, margin[1:N])
+    @variable(model, X[1:13,1:13] ∈ PSDCone()) # rank 1 of [r, t, 1]
+    @constraint(model, X[13,13]==1.)
+
+    # objective
+    obj = sum(margin)
+
+    # @variable(model, log_margin[1:N])
+    # obj = sum(log_margin)
+    # for i = 1:N
+    #     @constraint(model, [log_margin[i], 1, margin[i]] ∈ MOI.ExponentialCone())
+    # end
+    @objective(model, Max, obj)
+
+    # constraints
+    for (i,q) in enumerate(q_front)
+        Q = Symmetric([q.H  q.c;  q.c'  q.d])
+        @constraint(model, tr(Q*X) <= 0.)
+    end
+    for (i,q) in enumerate(q_backproj)
+        Q = Symmetric([q.H  q.c;  q.c'  q.d])
+        @constraint(model, tr(Q*X) <= -margin[i])
+    end
+    for (i,q) in enumerate(q_eqs)
+        Q = Symmetric([q.H  q.c;  q.c'  q.d])
+        @constraint(model,  tr(Q*X) == 0.)
+    end
+    if !isnothing(lowerb)
+        @constraint(model, margin .>= lowerb)
+    end
+    @constraint(model, margin .<= upperb)
+
+    # solve
+    optimize!(model)
+
+    X_val = Symmetric(value.(X))
+    margin_val = value.(margin)
+    opt = value(obj)
+
+    # round solution
+    x = eigvecs(X_val)[:,end]
+    x /= x[end]
+    R_est = project2SO3(reshape(x[1:9],3,3))
+    t_est = x[10:12]
+
+    tight = rank(X_val, 1e-4) == 1
+    if !tight
+        evs = eigvals(X_val)
+        if !silent
+            @warn "X not rank 1: λ₁ = $(evs[end]), λ₂ = $(evs[end-1])"
+        end
+    end
+
+    return R_est, t_est, tight, termination_status(model)
 end

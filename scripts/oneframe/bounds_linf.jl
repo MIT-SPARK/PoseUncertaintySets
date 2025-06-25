@@ -27,8 +27,8 @@ b = b[:, r .>= 0]
 r = r[r .>= 0]
 
 ## Pose estimate
-# R_est, t_est, purse_empty = ransagpose(r, y, b, camK)
-R_est, t_est, gap, SDP_status = gaussianpose(r, y, b, camK; silent=true, order=2)
+# R_est, t_est, purse_empty = ransagpose(y, r, b, camK)
+R_est, t_est, gap, SDP_status = gaussianpose(y, r, b, camK; silent=true, order=2)
 
 ## S-Lemma
 center = [rotm2quat(R_est); t_est]

@@ -47,7 +47,7 @@ function dataset_pose_est(keypoint_data, object_id, method; kwargs...)
         end
 
         # solve
-        out = @timed method(r, y, b, camK; kwargs...)
+        out = @timed method(y, r, b, camK; kwargs...)
         R_est, t_est, gap = out.value[1:3]
         extra = out.value[4:end]
         time = out.time - out.compile_time

@@ -23,7 +23,7 @@ include("load_data.jl")
 export calibrate_lp, load_keypoint_data
 
 include("pose_estimation.jl")
-export gaussianpose, ransagpose, gaussianpose_sdplr
+export gaussianpose, ransagpose, gaussianpose_sdplr, maxmarginpose
 
 include("uncertainty_set.jl")
 include("uncertainty_bounds.jl")
