@@ -15,7 +15,7 @@ cadpath = "../data/bop/lmo/models_eval/"
 object_ids = [1,5,6,9,8,10,11,12]
 # cadnames = Dict(1=>"ape", 5=>"can", 6=>"cat", 8=>"driller", 9=>"duck", 10=>"eggbox", 11=>"glue", 12=>"holepuncher")
 
-keypoint_data, gt = load_keypoint_data(calibrate_l2, α=α)
+keypoint_data, gt = load_keypoint_data(calibrate_lp, p=2, α=α)
 
 # GAUSSIAN, ORDER 1
 println("\nStarting Gaussian Order 1...")
@@ -109,7 +109,7 @@ time_results = [time_results; df_mg1 df_mg2 df_mr]
 # projection errors
 df_g1 = summarize_by(errs_g1, :id, [:proj], stats=("G1"=> x->100*sum(skipmissing(x).<=5.) / length(skipmissing(x))))
 df_g2 = summarize_by(errs_g2, :id, [:proj], stats=("G2"=> x->100*sum(skipmissing(x).<=5.) / length(skipmissing(x))))
-df_r  = summarize_by(errs_r , :id, [:proj], stats=("RA"=> x->100*sum(skipmissing(x).<=5.) / length(skipmissing(x))))
+df_r  = summarize_by(errs_r , :id, [:proj], stats=("RA"=> x->100*sum(skipmissing(x).<=5.) / length(collect(skipmissing(x)))))
 proj_results = [df_g1 df_g2 df_r]
 
 df_mg1 = summarize(errs_g1, [:proj], stats=("G1"=> x->100*sum(skipmissing(x).<=5.) / length(skipmissing(x))))

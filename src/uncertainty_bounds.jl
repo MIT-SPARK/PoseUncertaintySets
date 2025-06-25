@@ -291,8 +291,8 @@ end
 
 function bounding_sphere(center, q_front, q_backproj, q_eqs; order=1, silent=false)
 
-    # @polyvar R[1:3,1:3]
-    @polyvar R[1:4] # quaternion
+    @polyvar R[1:3,1:3]
+    # @polyvar R[1:4] # quaternion
     @polyvar t[1:3]
     vars = [vec(R); t]
 

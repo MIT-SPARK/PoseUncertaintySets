@@ -8,8 +8,8 @@ using Printf
 using PoseUncertaintySets
 using SimpleRotations
 
-object_id = 5
-frame = 100
+object_id = 9
+frame = 101
 
 ## Load data
 keypoint_data, gt = load_keypoint_data(calibrate_lp, p=2, α=0.1)
@@ -27,8 +27,8 @@ r = r[r .>= 0]
 
 ## Pose estimation
 # R_est, t_est, purse_empty = ransagpose(y, r, b, camK)
-R_est, t_est, gap, SDP_status = gaussianpose(y, r, b, camK; silent=true, order=2)
-# R_est, t_est, gap, SDP_status = maxmarginpose(y, r, b, camK)
+# R_est, t_est, gap, SDP_status = gaussianpose(y, r, b, camK; silent=true, order=2)
+R_est, t_est, gap, SDP_status = maxmarginpose(y, r, b, camK)
 
 ## Check against gt
 gt = gt[frame][object_id]

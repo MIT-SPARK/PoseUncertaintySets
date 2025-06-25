@@ -255,14 +255,14 @@ Returns pose estimate, optimization status, solution data, JuMP model
 - `upperb=10`: upper bound the margins
 - `silent=false`: should we print things?
 """
-function maxmarginpose(y, r, b, camK; lowerb=-1, upperb=10, silent=false)
+function maxmarginpose(y, r, b, camK; lowerb=-10, upperb=10, silent=false)
     q_front, q_backproj = uncertaintyset_l2(y, r, b, camK)
     q_eqs = SO3_constraints()
 
     return maxmarginpose(q_front, q_backproj, q_eqs; lowerb=lowerb, upperb=upperb, silent=silent)
 end
 
-function maxmarginpose(q_front, q_backproj, q_eqs; lowerb=-1, upperb=10, silent=false)
+function maxmarginpose(q_front, q_backproj, q_eqs; lowerb=-10, upperb=10, silent=false)
     N = length(q_backproj)
 
     model = Model(Clarabel.Optimizer)
@@ -296,10 +296,10 @@ function maxmarginpose(q_front, q_backproj, q_eqs; lowerb=-1, upperb=10, silent=
         Q = Symmetric([q.H  q.c;  q.c'  q.d])
         @constraint(model,  tr(Q*X) == 0.)
     end
-    if !isnothing(lowerb)
-        @constraint(model, margin .>= lowerb)
-    end
-    @constraint(model, margin .<= upperb)
+    # if !isnothing(lowerb)
+    #     @constraint(model, margin .>= lowerb)
+    # end
+    # @constraint(model, margin .<= upperb)
 
     # solve
     optimize!(model)
@@ -314,6 +314,21 @@ function maxmarginpose(q_front, q_backproj, q_eqs; lowerb=-1, upperb=10, silent=
     R_est = project2SO3(reshape(x[1:9],3,3))
     t_est = x[10:12]
 
+    # gap?
+    x_round = [vec(R_est); t_est; 1]
+    X2 = x_round * x_round'
+    margin_round = zeros(N)
+    for (i,q) in enumerate(q_backproj)
+        Q = Symmetric([q.H  q.c;  q.c'  q.d])
+        margin_round[i] = -tr(Q*X2)
+    end
+
+    ub = sum(margin_round)
+    gap = abs(ub - opt)/max(1, abs(ub))
+    if !silent
+        @printf "suboptimality gap of %.2f%%\n" gap*100
+    end
+
     tight = rank(X_val, 1e-4) == 1
     if !tight
         evs = eigvals(X_val)
@@ -322,5 +337,12 @@ function maxmarginpose(q_front, q_backproj, q_eqs; lowerb=-1, upperb=10, silent=
         end
     end
 
+    # Main.@infiltrate
+
     return R_est, t_est, tight, termination_status(model)
 end
+
+## TODO:
+# - try higher order relaxation
+# - try additional constraints (on sign of margin?)
+# - why does 0.6 work?

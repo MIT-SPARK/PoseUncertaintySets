@@ -28,13 +28,14 @@ r = r[r .>= 0]
 
 ## Pose estimate
 # R_est, t_est, purse_empty = ransagpose(y, r, b, camK)
-R_est, t_est, gap, SDP_status = gaussianpose(y, r, b, camK; silent=true, order=2)
+# R_est, t_est, gap, SDP_status = gaussianpose(y, r, b, camK; silent=true, order=2)
+R_est, t_est, gap, SDP_status = maxmarginpose(y, r, b, camK; silent=true)
 
 ## S-Lemma
 center = [vec(R_est); t_est]
 # H, status = bounding_ellipse(center, y, r, b, camK; solver=Mosek.Optimizer, silent=true)
-trans_bound, trans_gap, ang_bound, ang_gap, status = purse_bounds(center, y, r, b, camK; order=2, silent=false)
-# rad, status2 = bounding_sphere(center, y, r, b, camK; order=1, silent=false)
+# trans_bound, trans_gap, ang_bound, ang_gap, status = purse_bounds(center, y, r, b, camK; order=2, silent=false)
+rad, status2 = bounding_sphere(center, y, r, b, camK; order=2, silent=false)
 
 error("Lorenzo was here")
 
