@@ -59,9 +59,10 @@ function bounding_ellipse(center, q_front, q_backproj, q_eqs; solver=Clarabel.Op
 
     # rotation and position independent
     # @variable(model, H0_r[1:9,1:9] ∈ PSDCone())
-    # @variable(model, H0_p[1:3,1:3] ∈ PSDCone())
+    @variable(model, H0_p[1:3,1:3] ∈ PSDCone())
     # H0 = [H0_r zeros(9,3); zeros(3,9) H0_p]
     # H0 = [zeros(9,9) zeros(9,3); zeros(3,9) H0_p]
+    H0 = [zeros(4,4) zeros(4,3); zeros(3,4) H0_p]
     # H0 = [H0_r zeros(9,3); zeros(3,9) zeros(3,3)]
 
     # diagonal
@@ -71,7 +72,8 @@ function bounding_ellipse(center, q_front, q_backproj, q_eqs; solver=Clarabel.Op
     # objective: max logdet(H0)
     # use auxillary variable
     @objective(model, Max, log_det_H0)
-    @constraint(model, [log_det_H0; 1; vec(H0)] in MOI.LogDetConeSquare(dim))
+    @constraint(model, [log_det_H0; 1; triangle_vec(H0)] in MOI.LogDetConeTriangle(dim))
+    # @constraint(model, [log_det_H0; triangle_vec(H0)] in MOI.RootDetConeTriangle(dim))
 
     # build and constrain M
     # q0 = x'*H0*x + 2(-H0*c)'*x + c'*H0*c <= 1
@@ -97,6 +99,8 @@ function bounding_ellipse(center, q_front, q_backproj, q_eqs; solver=Clarabel.Op
         @warn "[bounding_ellipse] Solver terminated with status $(termination_status(model))"
     end
     H0_val = value.(H0)
+
+    Main.@infiltrate
 
     return (H0_val, termination_status(model))
 end
@@ -503,4 +507,66 @@ function refine_bbox(center, H, H_t, q_front, q_backproj; mode=3, order=1, silen
     end
 
     return bounds, gaps, statuses
+end
+
+
+"""
+Idea for pre-marginalized uncertainty bounds
+"""
+function premarg_bounds(center, y, r, b, camK; silent=true, order=2)
+    # variables
+    N = size(r,1)
+    @polyvar R[1:3,1:3]
+    vars = vec(R)
+
+    # eliminate t
+    e3 = [0;0;1]
+    U = Array{Any}(undef, N)
+    for i = 1:N
+        U[i] = (I - y[:,i]*e3')*camK
+    end
+    H = sum([U[i]'*U[i] / (r[i]^2) for i = 1:N])
+    t = -inv(H)*sum([U[i]'*U[i]*R*b[:,i] / (r[i]^2) for i = 1:N])
+
+    # objective
+    Rc = reshape(center[1:9], 3,3)
+    tc = center[10:12]
+    # obj = -tr(R'*Rc)
+    obj = -( tr((R-Rc)'*(R-Rc)) )
+    # obj = -( (t-tc)'*(t-tc) )
+
+    # constraints
+    # expr ≥ 0
+    ineq = Vector{TSSOS.Poly{Float64}}()
+    # expr = 0
+    eq = Vector{TSSOS.Poly{Float64}}()
+
+    tol = 1e-3
+    for i = 1:N
+        # chirality constraints
+        append!(ineq, [e3'*camK*(R*b[:,i] + t) + tol])
+
+        # backprojection constraints
+        res = (y[:,i]*e3' - I)*camK*(R*b[:,i] + t)
+        append!(ineq, [(r[i]*e3'*camK*(R*b[:,i] + t))^2 - res'*res])
+    end
+
+    # SO(3) constraints
+    append!(eq, vec(R'*R - I)) # O(3)
+    append!(eq, R[1:3,3] .- cross(R[1:3,1],R[1:3,2]))
+    append!(eq, R[1:3,1] .- cross(R[1:3,2],R[1:3,3]))
+    append!(eq, R[1:3,2] .- cross(R[1:3,3],R[1:3,1]))
+
+    # solve
+    pop = [obj; ineq; eq]
+    order = order
+    opt, sol, data, gap, model = cs_tssos_first(pop, vars, order, numeq=length(eq), TS="MD", QUIET=silent, solve=false, solution=false, MomentOne=true, refine=false)
+
+    ## Extract solution
+    R_est = project2SO3(reshape(sol[1:9],3,3))
+    t_est = [ti(vars=>vec(R_est)) for ti in t]
+
+    # ineq_val = (vars=>vec(R_est)) .|> ineq
+
+    return R_est, t_est, gap, data.SDP_status
 end
