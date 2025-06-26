@@ -59,10 +59,10 @@ function bounding_ellipse(center, q_front, q_backproj, q_eqs; solver=Clarabel.Op
 
     # rotation and position independent
     # @variable(model, H0_r[1:9,1:9] ∈ PSDCone())
-    @variable(model, H0_p[1:3,1:3] ∈ PSDCone())
+    # @variable(model, H0_p[1:3,1:3] ∈ PSDCone())
     # H0 = [H0_r zeros(9,3); zeros(3,9) H0_p]
     # H0 = [zeros(9,9) zeros(9,3); zeros(3,9) H0_p]
-    H0 = [zeros(4,4) zeros(4,3); zeros(3,4) H0_p]
+    # H0 = [zeros(4,4) zeros(4,3); zeros(3,4) H0_p]
     # H0 = [H0_r zeros(9,3); zeros(3,9) zeros(3,3)]
 
     # diagonal
@@ -99,8 +99,6 @@ function bounding_ellipse(center, q_front, q_backproj, q_eqs; solver=Clarabel.Op
         @warn "[bounding_ellipse] Solver terminated with status $(termination_status(model))"
     end
     H0_val = value.(H0)
-
-    Main.@infiltrate
 
     return (H0_val, termination_status(model))
 end
@@ -178,18 +176,34 @@ Uncertainty bound from "Object Pose Estimation with Statistical Guarantees"
 
 Maximize distance to PURSE while remaining in PURSE.
 """
-function purse_bounds(center, y, r, b, camK; order=2, silent=false)
-    q_front, q_backproj = uncertaintyset_l2(y, r, b, camK)
-    q_eqs = SO3_constraints()
+function purse_bounds(center, y, r, b, camK; p=2, order=2, silent=false)
+    (p == 2 || p == Inf) || error("only accepts `p=2` or `p=Inf`")
+
+    if p == 2
+        q_front, q_backproj = uncertaintyset_l2(y, r, b, camK)
+        q_eqs = SO3_constraints()
+    else
+        # does not work
+        # q_front, q_backproj = uncertaintyset_linf_R(y, r, b, camK)
+        # q_eqs = SO3_constraints()
+        q_front, q_backproj = uncertaintyset_linf_q(y, r, b, camK)
+        q_eqs = q_constraints()
+    end
 
     return purse_bounds(center, q_front, q_backproj, q_eqs; order=order, silent=silent)
 end
 
 function purse_bounds(center, q_front, q_backproj, q_eqs; order=2, silent=false)
-    Rc = reshape(center[1:9],3,3)
-    tc = center[10:12]
+    dim = length(center)
+    if dim == 12
+        Rc = reshape(center[1:9],3,3)
+        @polyvar R[1:3,1:3]
+    else
+        Rc = center[1:4]
+        @polyvar R[1:4] 
+    end
 
-    @polyvar R[1:3,1:3]
+    tc = center[end-2:end] 
     @polyvar t[1:3]
     vars = [vec(R); t]
 
@@ -202,7 +216,11 @@ function purse_bounds(center, q_front, q_backproj, q_eqs; order=2, silent=false)
 
     for λ = [0, 1]
         # objective
-        obj = -( λ*tr((R-Rc)'*(R-Rc)) + (1-λ)*(t-tc)'*(t-tc) )
+        if dim == 12
+            obj = -( λ*tr((R-Rc)'*(R-Rc)) + (1-λ)*(t-tc)'*(t-tc) )
+        else
+            obj = -( λ*((R-Rc)'*(R-Rc)) + (1-λ)*(t-tc)'*(t-tc) )
+        end
 
         # constraints
         # expr ≥ 0
@@ -226,11 +244,11 @@ function purse_bounds(center, q_front, q_backproj, q_eqs; order=2, silent=false)
             push!(eq, tr(Q*X))
         end
 
-        # SO(3) constraints
-        # append!(eq, vec(R'*R - I)) # O(3)
-        # append!(eq, R[1:3,3] .- cross(R[1:3,1],R[1:3,2]))
-        # append!(eq, R[1:3,1] .- cross(R[1:3,2],R[1:3,3]))
-        # append!(eq, R[1:3,2] .- cross(R[1:3,3],R[1:3,1]))
+        # 90 degree rotation constraint
+        if dim == 7
+            push!(ineq, R'*center[1:4])
+            @warn "angular bound conversion to degrees not yet implemented"
+        end
 
         # solve
         pop = [obj; ineq; eq]
@@ -294,15 +312,25 @@ end
 
 
 function bounding_sphere(center, q_front, q_backproj, q_eqs; order=1, silent=false)
-
-    @polyvar R[1:3,1:3]
-    # @polyvar R[1:4] # quaternion
+    dim = length(center)
+    if dim == 12
+        @polyvar R[1:3,1:3]
+    else
+        @polyvar R[1:4] # quaternion
+    end
     @polyvar t[1:3]
     vars = [vec(R); t]
 
     # objective
     W = [I -center; -center' center'*center]
     obj = -[vars;1]'*W*[vars;1] # equivalent to minimizing radius of ellipse centered at `center`
+
+    # minimize individual ones
+    # tc = center[end-2:end]
+    # obj = -(t - tc)'*(t - tc)
+    # qc = center[1:4]
+    # obj = -(R - qc)'*(R - qc)
+    # this is identical to PURSE bounds!
 
     # constraints
     # expr ≥ 0
@@ -322,11 +350,10 @@ function bounding_sphere(center, q_front, q_backproj, q_eqs; order=1, silent=fal
         push!(eq, [vars;1]'*[q.H  q.c;  q.c'  q.d]*[vars;1])
     end
 
-    # SO(3) constraints
-    # append!(eq, vec(R'*R - I)) # O(3)
-    # append!(eq, R[1:3,3] .- cross(R[1:3,1],R[1:3,2]))
-    # append!(eq, R[1:3,1] .- cross(R[1:3,2],R[1:3,3]))
-    # append!(eq, R[1:3,2] .- cross(R[1:3,3],R[1:3,1]))
+    # 90 degree rotation constraint
+    if dim == 7
+        push!(ineq, R'*center[1:4])
+    end
 
     # solve
     pop = [obj; ineq; eq]
@@ -338,7 +365,10 @@ function bounding_sphere(center, q_front, q_backproj, q_eqs; order=1, silent=fal
         gap = -1
     end
 
-    return -opt, data.SDP_status
+    # CONVERT TO RADIUS
+    rad = sqrt(-opt)
+
+    return rad, data.SDP_status
 end
 
 

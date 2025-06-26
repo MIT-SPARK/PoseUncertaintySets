@@ -9,6 +9,12 @@ struct Quadratic
     d ::Float64
 end
 
+"""
+computes x'*Q*x
+"""
+function quadform(q::Quadratic, x)
+    [x;1]'*[q.H  q.c;  q.c'  q.d]*[x;1]
+end
 
 """
     [q_front, q_backproj] = uncertaintyset_l2(y, r, b, K)
@@ -267,7 +273,8 @@ function uncertaintyset_linf_q(y, r, b, K)
     for i = 1:N
         # front of camera
         H = zeros(7,7)
-        H[1:4, 1:4] = -(-Ω2(K'*e3)*Ω1(b[:,i]))
+        H[1:4, 1:4] = -(-Ω1(K'*e3)*Ω2(b[:,i]))
+        H += H'
         c = -[zeros(4); K'*e3]
         s = 0.
         push!(q_front, Quadratic(H, c, s))
@@ -278,58 +285,28 @@ function uncertaintyset_linf_q(y, r, b, K)
             ej = zeros(3); ej[j] = 1
 
             H = zeros(7,7)
-            H[1:4, 1:4] = (-Ω2(iy3'*ej)*Ω1(b[:,i])) - r[i]*(-Ω2(K'*e3)*Ω1(b[:,i]))
+            H[1:4, 1:4] = (-Ω1((iy3*K)'*ej)*Ω2(b[:,i])) - r[i]*(-Ω1(K'*e3)*Ω2(b[:,i]))
+            H += H'
             c = [zeros(4); (ej'*iy3*K)' - r[i]*(e3'*K)']
             s = 0.
             push!(q_backproj, Quadratic(H, c, s))
 
             # negative term
             H = zeros(7,7)
-            H[1:4, 1:4] = -(-Ω2(iy3'*ej)*Ω1(b[:,i])) - r[i]*(-Ω2(K'*e3)*Ω1(b[:,i]))
+            H[1:4, 1:4] = -(-Ω1((iy3*K)'*ej)*Ω2(b[:,i])) - r[i]*(-Ω1(K'*e3)*Ω2(b[:,i]))
+            H += H'
             c = [zeros(4); -(ej'*iy3*K)' - r[i]*(e3'*K)']
             s = 0.
             push!(q_backproj, Quadratic(H, c, s))
         end
     end
 
-    ## TODO: could add constraint on sign of any element of q to remove ambiguity
-    # begin
-    #     # add this to q_front for lack of a better place
-    #     H = zeros(7,7)
-    #     c = [1; zeros(6)]
-    #     s = 0.
-    #     # q₁ ≤ 0
-    #     push!(q_front, Quadratic(H, c, s))
-
-    #     # bound constraints
-    #     c = zeros(7); c[1] = -1 # q1 ≥ -1
-    #     push!(q_front, Quadratic(zeros(7,7), c, -1))
-    #     c = zeros(7); c[1] = 1 # q1 ≤ 1
-    #     push!(q_front, Quadratic(zeros(7,7), c, -1))
-    #     H = zeros(7,7); H[1,1] = 1 # q1^2 ≤ 1
-    #     push!(q_front, Quadratic(H, zeros(7), -1))
-
-    #     c = zeros(7); c[2] = -1 # q2 ≥ -1
-    #     push!(q_front, Quadratic(zeros(7,7), c, -1))
-    #     c = zeros(7); c[2] = 1 # q2 ≤ 1
-    #     push!(q_front, Quadratic(zeros(7,7), c, -1))
-    #     H = zeros(7,7); H[2,2] = 1 # q2^2 ≤ 1
-    #     push!(q_front, Quadratic(H, zeros(7), -1))
-
-    #     c = zeros(7); c[3] = -1 # q3 ≥ -1
-    #     push!(q_front, Quadratic(zeros(7,7), c, -1))
-    #     c = zeros(7); c[3] = 1 # q3 ≤ 1
-    #     push!(q_front, Quadratic(zeros(7,7), c, -1))
-    #     H = zeros(7,7); H[3,3] = 1 # q3^2 ≤ 1
-    #     push!(q_front, Quadratic(H, zeros(7), -1))
-
-    #     c = zeros(7); c[4] = -1 # q4 ≥ -1
-    #     push!(q_front, Quadratic(zeros(7,7), c, -1))
-    #     c = zeros(7); c[4] = 1 # q4 ≤ 1
-    #     push!(q_front, Quadratic(zeros(7,7), c, -1))
-    #     H = zeros(7,7); H[4,4] = 1 # q4^2 ≤ 1
-    #     push!(q_front, Quadratic(H, zeros(7), -1))
-    # end
+    ## remove sign ambiguity
+    # H = zeros(7,7)
+    # c = [1; zeros(6)]
+    # s = 0.
+    # # q₁ ≤ 0
+    # push!(q_front, Quadratic(H, c, s))
 
     return q_front, q_backproj
 end
