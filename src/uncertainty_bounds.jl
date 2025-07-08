@@ -3,7 +3,7 @@
 
 
 """
-    bounding_ellipse(center, y, r, b, K[; solver=Clarabel.Optimizer, silent=false])
+    bounding_ellipse(center, y, r, b, K[; p=2, solver=Clarabel.Optimizer, silent=false])
 
 S-Lemma to outer bound pose uncertainty set. `(x-center)'*H*(x-center) ≤ 1`
 
@@ -24,25 +24,37 @@ Returns ellipse matrix `H`, optimization status.
 - `H`: PSD ellipse matrix
 - `status`: termination status of optimization
 """
-function bounding_ellipse(center, y, r, b, camK; p=2, solver=Clarabel.Optimizer, silent=false)
+function bounding_ellipse(center, y, r, b, camK; p=2, solver=Mosek.Optimizer, silent=false)
     (p == 2 || p == Inf) || error("only accepts `p=2` or `p=Inf`")
 
     if p == 2
         q_front, q_backproj = uncertaintyset_l2(y, r, b, camK)
         q_eqs = SO3_constraints()
     else
-        # does not work
-        # q_front, q_backproj = uncertaintyset_linf_R(y, r, b, camK)
-        # q_eqs = SO3_constraints()
-        q_front, q_backproj = uncertaintyset_linf_q(y, r, b, camK)
-        q_eqs = q_constraints()
+        ## Rotation Version
+        q_front, q_backproj = uncertaintyset_linf_R(y, r, b, camK)
+        q_new = []
+        for q1 in q_backproj, q2 in q_backproj
+            H = -q1.c*q2.c'
+            H += H'
+            push!(q_new, Quadratic(H, zeros(12), 0.)) # ≤ 0
+        end
+        q_front = [q_front; q_new]
+
+
+
+        q_eqs = SO3_constraints()
+
+        ## Quaternion Version
+        # q_front, q_backproj = uncertaintyset_linf_q(y, r, b, camK)
+        # q_eqs = q_constraints()
     end
 
     return bounding_ellipse(center, q_front, q_backproj, q_eqs; solver=solver, silent=silent)
 end
 
 
-function bounding_ellipse(center, prob; solver=Clarabel.Optimizer, silent=false)
+function bounding_ellipse(center, prob; solver=Mosek.Optimizer, silent=false)
     return bounding_ellipse(center, prob.y, prob.r, prob.b, prob.camK; p=prob.p, solver=solver, silent=silent)
 end
 

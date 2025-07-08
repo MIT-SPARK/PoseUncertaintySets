@@ -20,16 +20,24 @@ prob2 = get_problem(keypoint_data2, object_id, frame)
 probi = get_problem(keypoint_datai, object_id, frame)
 
 # pose estimate
-# R2, t2, gap2, status2 = gaussianpose(prob2; silent=true, order=2)
-# Ri, ti, gapi, statusi = gaussianpose(probi; silent=true, order=2)
-R2, t2, gap2, status2 = maxmarginpose(prob2; silent=true)
-Ri, ti, gapi, statusi = maxmarginpose(probi; silent=true)
+R2, t2, gap2, status2 = gaussianpose(prob2; silent=true, order=2)
+Ri, ti, gapi, statusi = gaussianpose(probi; silent=true, order=2)
+# R2, t2, gap2, status2 = maxmarginpose(prob2; silent=true)
+# Ri, ti, gapi, statusi = maxmarginpose(probi; silent=true)
 
 # bounds estimate
 center2 = [vec(R2); t2]
 rad2, statusb2 = bounding_sphere(center2, prob2; order=2, silent=false)
 centeri = [rotm2quat(Ri); ti]
 radi, statusbi = bounding_sphere(centeri, probi; order=2, silent=false)
+
+
+center2 = [vec(R2); t2]
+H2, statusb2 = bounding_ellipse(center2, prob2; silent=false)
+
+centeri = [vec(Ri); ti]
+Hi, statusbi = bounding_ellipse(centeri, probi; silent=false)
+
 
 
 # linf vs. l2: Inf is generally tighter / faster.
