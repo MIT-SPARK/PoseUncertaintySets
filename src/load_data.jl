@@ -1,6 +1,37 @@
 ## Functions to load data
 # Lorenzo Shaikewitz, 6/13/2025
 
+struct Problem
+    p::Int          # lp norm
+    frame::Int
+    object_id::Int
+    r               # conformal radii
+    y               # pixel keypoints
+    b               # 3D keypoints
+    camK            # camera calibration matrix
+end
+
+function get_problem(keypoint_data, object_id, frame)
+    camK = keypoint_data["K"]
+
+    r = keypoint_data["r"][frame][object_id]
+    y = keypoint_data["y"][frame][object_id]
+    b = keypoint_data["b"][object_id]
+
+    # eliminate missing measurements
+    y = y[1:2,r .>= 0]
+    y = [y[1:2,:]; ones(size(y,2))']
+    b = b[:, r .>= 0]
+    r = r[r .>= 0]
+
+    return Problem(keypoint_data["p"], frame, object_id, r, y, b, camK)
+end
+
+
+
+"""
+Load keypoints and calibrate
+"""
 function load_keypoint_data(cal_fn=calibrate_lp; p=2, α=0.1, path_kpts3d="../data/kpts3d.json", 
         parent_cal="../data/bop/lmo/test_bop19/000002", parent_test="../data/bop/lmo/test_all/000002",
         detections_cal_path="../data/detections_lmo_cal.json", detections_test_path="../data/detections_lmo_test.json")
@@ -17,7 +48,7 @@ function load_keypoint_data(cal_fn=calibrate_lp; p=2, α=0.1, path_kpts3d="../da
     # calibrate!
     radii, scores, ns = cal_fn(kpts_cal, gt_cal, camK, kpts_test, kpt_lib, p, α)
 
-    data = Dict("K"=>camK, "r"=>radii, "y"=>kpts_test, "b"=>kpt_lib)
+    data = Dict("K"=>camK, "r"=>radii, "y"=>kpts_test, "b"=>kpt_lib, "p"=>p)
     return data, gt_test
 end
 

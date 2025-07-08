@@ -20,7 +20,7 @@ using P3P
 
 # Files
 include("load_data.jl")
-export calibrate_lp, load_keypoint_data
+export get_problem, calibrate_lp, load_keypoint_data
 
 include("pose_estimation.jl")
 export gaussianpose, ransagpose, gaussianpose_sdplr, maxmarginpose

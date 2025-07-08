@@ -37,8 +37,6 @@ H, status = bounding_ellipse(center, y, r, b, camK; solver=Mosek.Optimizer, sile
 # trans_bound, trans_gap, ang_bound, ang_gap, status = purse_bounds(center, y, r, b, camK; order=2, silent=false)
 # rad, status2 = bounding_sphere(center, y, r, b, camK; order=2, silent=false)
 
-# error("Lorenzo was here")
-
 ## Angular Bounds
 # Δθs, status_angbounds, gaps = angular_bounds(center, H)
 
