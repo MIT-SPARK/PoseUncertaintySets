@@ -40,9 +40,6 @@ function bounding_ellipse(center, y, r, b, camK; p=2, solver=Mosek.Optimizer, si
             push!(q_new, Quadratic(H, zeros(12), 0.)) # ≤ 0
         end
         q_front = [q_front; q_new]
-
-
-
         q_eqs = SO3_constraints()
 
         ## Quaternion Version
@@ -73,6 +70,8 @@ function bounding_ellipse(center, q_front, q_backproj, q_eqs; solver=Clarabel.Op
     # full 12 x 12
     dim = size(q_front[1].H,1)
     @variable(model, H0[1:dim,1:dim] ∈ PSDCone())
+    # @variable(model, h0 ≥ 0)
+    # H0 = [zeros(9,12); zeros(3,9) diagm(ones(3))*h0]
 
     # rotation and position independent
     # @variable(model, H0_r[1:9,1:9] ∈ PSDCone())
@@ -90,7 +89,11 @@ function bounding_ellipse(center, q_front, q_backproj, q_eqs; solver=Clarabel.Op
     # use auxillary variable
     @objective(model, Max, log_det_H0)
     @constraint(model, [log_det_H0; 1; triangle_vec(H0)] in MOI.LogDetConeTriangle(dim))
-    # @constraint(model, [log_det_H0; triangle_vec(H0)] in MOI.RootDetConeTriangle(dim))
+    # @constraint(model, [log_det_H0; triangle_vec(H0)] in MOI.RootDetConeTriangle(dim)) # alt logdet cone
+    # @constraint(model, H0[10:12,10:12] - log_det_H0*diagm(ones(3)) >= 0, PSDCone()) # max minimum eigenvalue
+
+    # alt objective
+    # @objective(model, Max, tr(H0))
 
     # build and constrain M
     # q0 = x'*H0*x + 2(-H0*c)'*x + c'*H0*c <= 1

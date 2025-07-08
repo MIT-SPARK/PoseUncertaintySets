@@ -210,45 +210,6 @@ end
 ## QUATERNIONS
 
 """
-    Ω1(q)
-
-Defined by `a ⊗ b = Ω1(a)*b` where `a,b` are quaternions.
-
-Automatically adds leading 0 if dimension is 3.
-
-Also satisfies `Ω1(a^{-1}) = Ω1(a)^T`.
-"""
-function Ω1(q)
-    if size(q)[1] == 3
-        q = [0; q]
-    end
-    [q[1] -q[2] -q[3] -q[4];
-     q[2]  q[1] -q[4]  q[3];
-     q[3]  q[4]  q[1] -q[2];
-     q[4] -q[3]  q[2]  q[1]]
-end
-
-"""
-    Ω2(q)
-
-Defined by `a ⊗ b = Ω2(b)*a` where `a,b` are quaternions.
-
-Automatically adds leading 0 if dimension is 3.
-
-Also satisfies `Ω2(a^{-1}) = Ω2(a)^T`.
-"""
-function Ω2(q)
-    if size(q)[1] == 3
-        q = [0; q]
-    end
-    [q[1] -q[2] -q[3] -q[4];
-     q[2]  q[1]  q[4] -q[3];
-     q[3] -q[4]  q[1]  q[2];
-     q[4]  q[3] -q[2]  q[1]]
-end
-
-
-"""
     [q_front, q_backproj] = uncertaintyset_linf_q(y, r, b, K)
 
 Generate pose uncertainty set (linf norm) from problem data.
