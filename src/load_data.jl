@@ -2,7 +2,7 @@
 # Lorenzo Shaikewitz, 6/13/2025
 
 struct Problem
-    p::Int          # lp norm
+    p               # lp norm
     frame::Int
     object_id::Int
     r               # conformal radii

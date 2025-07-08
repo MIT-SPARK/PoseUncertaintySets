@@ -42,6 +42,11 @@ function bounding_ellipse(center, y, r, b, camK; p=2, solver=Clarabel.Optimizer,
 end
 
 
+function bounding_ellipse(center, prob; solver=Clarabel.Optimizer, silent=false)
+    return bounding_ellipse(center, prob.y, prob.r, prob.b, prob.camK; p=prob.p, solver=solver, silent=silent)
+end
+
+
 function bounding_ellipse(center, q_front, q_backproj, q_eqs; solver=Clarabel.Optimizer, silent=false)
 
     # JuMP model
@@ -308,6 +313,10 @@ function bounding_sphere(center, y, r, b, camK; p=2, order=1, silent=false)
     end
 
     return bounding_sphere(center, q_front, q_backproj, q_eqs; order=order, silent=silent)
+end
+
+function bounding_sphere(center, prob; order=1, silent=false)
+    return bounding_sphere(center, prob.y, prob.r, prob.b, prob.camK; p=prob.p, order=order, silent=silent)
 end
 
 

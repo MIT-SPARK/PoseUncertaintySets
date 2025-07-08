@@ -6,7 +6,7 @@ import Plots
 using PoseUncertaintySets
 
 object_id = 9
-frame = 102
+frame = 11
 image_parent = "../data/bop/lmo/test_all/000002/rgb"
 cadpath = "../data/bop/lmo/models_eval/"
 

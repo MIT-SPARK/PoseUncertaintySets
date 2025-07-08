@@ -77,6 +77,12 @@ function gaussianpose(y, r, b, camK; silent=true, order=2)
     return R_est, t_est, gap, data.SDP_status
 end
 
+function gaussianpose(prob; kwargs...)
+    return gaussianpose(prob.y, prob.r, prob.b, prob.camK; kwargs...)
+end
+
+
+
 """
     ransagpose(y, r, b, camK; T=1000)
 
@@ -260,6 +266,10 @@ function maxmarginpose(y, r, b, camK; lowerb=-10, upperb=10, silent=false)
     q_eqs = SO3_constraints()
 
     return maxmarginpose(q_front, q_backproj, q_eqs; lowerb=lowerb, upperb=upperb, silent=silent)
+end
+
+function maxmarginpose(prob; kwargs...)
+    return maxmarginpose(prob.y, prob.r, prob.b, prob.camK; kwargs...)
 end
 
 function maxmarginpose(q_front, q_backproj, q_eqs; lowerb=-10, upperb=10, silent=false)

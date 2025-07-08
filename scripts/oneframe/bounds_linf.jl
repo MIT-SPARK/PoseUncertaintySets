@@ -10,43 +10,35 @@ using PoseUncertaintySets
 using SimpleRotations
 
 object_id = 9
-frame = 10
+frame = 11
 
-function load_and_bound(p)
-    ## Load data
-    keypoint_data, gt = load_keypoint_data(calibrate_lp, p=p, α=0.1)
-    camK = keypoint_data["K"]
+# Load data
+keypoint_data2, gt = load_keypoint_data(calibrate_lp, p=2  , α=0.1)
+keypoint_datai, gt = load_keypoint_data(calibrate_lp, p=Inf, α=0.1)
 
-    r = keypoint_data["r"][frame][object_id]
-    y = keypoint_data["y"][frame][object_id]
-    b = keypoint_data["b"][object_id]
+prob2 = get_problem(keypoint_data2, object_id, frame)
+probi = get_problem(keypoint_datai, object_id, frame)
 
-    # eliminate missing measurements
-    y = y[1:2,r .>= 0]
-    y = [y[1:2,:]; ones(size(y,2))']
-    b = b[:, r .>= 0]
-    r = r[r .>= 0]
+# pose estimate
+# R2, t2, gap2, status2 = gaussianpose(prob2; silent=true, order=2)
+# Ri, ti, gapi, statusi = gaussianpose(probi; silent=true, order=2)
+R2, t2, gap2, status2 = maxmarginpose(prob2; silent=true)
+Ri, ti, gapi, statusi = maxmarginpose(probi; silent=true)
 
-    ## Pose estimate
-    R_est, t_est, gap, SDP_status = gaussianpose(y, r, b, camK; silent=true, order=2)
-
-    ## S-Lemma
-    # l2 approach
-    if p == 2
-        center = [vec(R_est); t_est]
-    else
-        center = [rotm2quat(R_est); t_est]
-    end
-    rad, status = bounding_sphere(center, y, r, b, camK; p=p, order=2, silent=false)
-
-    @infiltrate
-
-    return rad, status
-end
+# bounds estimate
+center2 = [vec(R2); t2]
+rad2, statusb2 = bounding_sphere(center2, prob2; order=2, silent=false)
+centeri = [rotm2quat(Ri); ti]
+radi, statusbi = bounding_sphere(centeri, probi; order=2, silent=false)
 
 
-rad2, status2 = load_and_bound(2)
-radi, statusi = load_and_bound(Inf)
+# linf vs. l2: Inf is generally tighter / faster.
+# Should change objective for sphere in translation only for fair comparison
+# Next: second order S-Lemma for Inf norm (same as R version of Inf norm)
+
+# gaussian vs maxmargin: maxmargin is a better center (tighter uncertainty sets)
+# Next: try defining ellipse by foci
 
 # Conclusion: Inf norm works and is generally tighter and faster than 2 norm!
 # Next: second order version of S-Lemma for Inf norm (experience shows it will have only small penalty)
+# - this is the same as the R version of Inf norm (we also need some redundant constraints)
