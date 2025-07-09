@@ -8,30 +8,25 @@ using Printf
 using PoseUncertaintySets
 using SimpleRotations
 
-object_id = 9
-frame = 101
+object_id = 5
+frame = 80
 
-## Load data
-keypoint_data, gt = load_keypoint_data(calibrate_lp, p=2, α=0.1)
-camK = keypoint_data["K"]
+# Load data
+keypoint_data2, gt2 = load_keypoint_data(calibrate_lp, p=2  , α=0.1)
+keypoint_datai, gti = load_keypoint_data(calibrate_lp, p=Inf, α=0.1)
 
-r = keypoint_data["r"][frame][object_id]
-y = keypoint_data["y"][frame][object_id]
-b = keypoint_data["b"][object_id]
+prob2 = get_problem(keypoint_data2, object_id, frame)
+probi = get_problem(keypoint_datai, object_id, frame)
 
-# eliminate missing measurements
-y = y[1:2,r .>= 0]
-y = [y[1:2,:]; ones(size(y,2))']
-b = b[:, r .>= 0]
-r = r[r .>= 0]
-
-## Pose estimation
-# R_est, t_est, purse_empty = ransagpose(y, r, b, camK)
-# R_est, t_est, gap, SDP_status = gaussianpose(y, r, b, camK; silent=true, order=2)
-R_est, t_est, gap, SDP_status = maxmarginpose(y, r, b, camK)
+# Pose estimation
+# R_est, t_est, purse_empty = ransagpose(prob2)
+R_est, t_est, gap, SDP_status = gaussianpose(prob2; silent=true, order=2)
+# R_est, t_est, gap, SDP_status = maxmarginpose(prob2)
+# R_est, t_est, gap, SDP_status = conformalpose(probi; order=2, silent=false)
+# R_est, t_est, gap, SDP_status = conformalpose_local(probi; silent=true)
 
 ## Check against gt
-gt = gt[frame][object_id]
+gt = gt2[frame][object_id]
 R_gt = project2SO3(gt[1])
 t_gt = gt[2]
 err_R = roterror(R_gt, R_est)

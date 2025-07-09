@@ -382,7 +382,8 @@ function bounding_sphere(center, q_front, q_backproj, q_eqs; order=1, silent=fal
     # solve
     pop = [obj; ineq; eq]
     order = order
-    opt, sol, data, gap = cs_tssos_first(pop, vars, order, numeq=length(eq), TS=false, CS="MF", QUIET=silent, solution=true, refine=false)
+    opt, sol, data, gap = cs_tssos_first(pop, vars, order, numeq=length(eq), TS=false, CS="MD", QUIET=silent, solution=true, refine=false)
+    Main.@infiltrate
 
     if data.SDP_status != MOI.OPTIMAL
         @warn "[bounding_sphere] Returned status $(data.SDP_status). Results may not be lower bound!"
@@ -468,23 +469,41 @@ Options:
 - BEST: ellipse + chirality (3)
 - FASTEST: ellipse only (4)
 """
-function refine_bbox(center, H, H_t, y, r, b, camK; mode=3, order=1, silent=false)
-    q_front, q_backproj = uncertaintyset_l2(y, r, b, camK)
+function refine_bbox(center, H, y, r, b, camK; p=2, mode=3, order=1, H_t=nothing, silent=false)
+    (p == 2 || p == Inf) || error("only accepts `p=2` or `p=Inf`")
 
-    return refine_bbox(center, H, H_t, q_front, q_backproj; mode=mode, order=order, silent=silent)
+    if p == 2
+        q_front, q_backproj = uncertaintyset_l2(y, r, b, camK)
+        q_eqs = SO3_constraints()
+    else
+        ## Rotation Version
+        q_front, q_backproj = uncertaintyset_linf_R(y, r, b, camK)
+        q_eqs = SO3_constraints()
+        ## Quaternion Version
+        # q_front, q_backproj = uncertaintyset_linf_q(y, r, b, camK)
+        # q_eqs = q_constraints()
+    end
+
+    if isnothing(H_t)
+        # marginalize via projection
+        # P = [zeros(3,p == 2 ? 9 : 4) diagm(ones(3))]
+        P = [zeros(3,9) diagm(ones(3))]
+        H_t = inv(P*pinv(H)*P')
+    end
+    return refine_bbox(center, H, q_front, q_backproj, q_eqs; p=p, mode=mode, order=order, H_t=H_t, silent=silent)
 end
 
-function refine_bbox(center, H, y, r, b, camK; mode=3, order=1, silent=false)
-    q_front, q_backproj = uncertaintyset_l2(y, r, b, camK)
-
-    # marginalize via projection
-    P = [zeros(3,9) diagm(ones(3))]
-    H_t = inv(P*inv(H)*P')
-    return refine_bbox(center, H, H_t, q_front, q_backproj; mode=mode, order=order, silent=silent)
+function refine_bbox(center, H, prob; mode=3, order=1, H_t=nothing, silent=false)
+    refine_bbox(center, H, prob.y, prob.r, prob.b, prob.camK; p=prob.p, mode=mode, order=order, H_t=H_t, silent=silent)
 end
 
-function refine_bbox(center, H, H_t, q_front, q_backproj; mode=3, order=1, silent=false)
-    @polyvar R[1:3,1:3]
+function refine_bbox(center, H, q_front, q_backproj, q_eqs; p=2, mode=3, order=1, H_t=nothing, silent=false)
+    if p == 2
+        @polyvar R[1:3,1:3]
+    else
+        # @polyvar R[1:4] # quaternion
+        @polyvar R[1:3,1:3]
+    end
     @polyvar t[1:3]
     vars = [vec(R); t]
 
@@ -495,10 +514,9 @@ function refine_bbox(center, H, H_t, q_front, q_backproj; mode=3, order=1, silen
 
     # eigendecomposition
     V = eigvecs(H_t)
-    l = eigvals(H_t)
     for idx = [1, 2, 3]
         # objective: axis-aligned bbox
-        obj = (V'*(t - center[10:12]))[idx]
+        obj = (V'*(t - center[end-2:end]))[idx]
 
         # constraints
         # expr ≥ 0
@@ -535,11 +553,10 @@ function refine_bbox(center, H, H_t, q_front, q_backproj; mode=3, order=1, silen
             push!(ineq, -( (vars-center)'*H*(vars-center) - 1 ))
         end
 
-        # Always enforce SO(3) constraints (TODO: ?)
-        append!(eq, vec(R'*R - I)) # O(3)
-        append!(eq, R[1:3,3] .- cross(R[1:3,1],R[1:3,2]))
-        append!(eq, R[1:3,1] .- cross(R[1:3,2],R[1:3,3]))
-        append!(eq, R[1:3,2] .- cross(R[1:3,3],R[1:3,1]))
+        # Always enforce SO(3) constraints
+        for (i,q) in enumerate(q_eqs)
+            push!(eq, [vars;1]'*[q.H  q.c;  q.c'  q.d]*[vars;1])
+        end
 
         # solve
         for (row, mult) in enumerate([-1, 1])
@@ -623,4 +640,93 @@ function premarg_bounds(center, y, r, b, camK; silent=true, order=2)
     # ineq_val = (vars=>vec(R_est)) .|> ineq
 
     return R_est, t_est, gap, data.SDP_status
+end
+
+
+
+
+"""
+Test bounding sphere for 2nd order
+"""
+function bounding_sphere2(center, y, r, b, camK; p=2, order=1, silent=false)
+    (p == 2 || p == Inf) || error("only accepts `p=2` or `p=Inf`")
+
+    if p == 2
+        q_front, q_backproj = uncertaintyset_l2(y, r, b, camK)
+        q_eqs = SO3_constraints()
+    else
+        q_front, q_backproj = uncertaintyset_linf_R(y, r, b, camK)
+        q_new = []
+        for q1 in q_backproj, q2 in q_backproj
+            H = -q1.c*q2.c'
+            H += H'
+            push!(q_new, Quadratic(H, zeros(12), 0.)) # ≤ 0
+        end
+        q_front = [q_front; q_new]
+        q_eqs = SO3_constraints()
+    end
+
+    return bounding_sphere2(center, q_front, q_backproj, q_eqs; order=order, silent=silent)
+end
+
+function bounding_sphere2(center, prob; order=1, silent=false)
+    return bounding_sphere2(center, prob.y, prob.r, prob.b, prob.camK; p=prob.p, order=order, silent=silent)
+end
+
+
+function bounding_sphere2(center, q_front, q_backproj, q_eqs; order=1, silent=false)
+    dim = length(center)
+
+    model = Model(Mosek.Optimizer)
+    @variable(model, X[1:8,1:13])
+
+    # objective
+    W = [I -center; -center' center'*center]
+    obj = -[vec(R); t;1]'*W*[vec(R); t;1] # equivalent to minimizing radius of ellipse centered at `center`
+    @objective(model, Min, obj)
+
+    # minimize individual ones
+    # tc = center[end-2:end]
+    # obj = -(t - tc)'*(t - tc)
+    # qc = center[1:4]
+    # obj = -(R - qc)'*(R - qc)
+    # this is identical to PURSE bounds!
+
+    # constraints
+    # expr ≥ 0
+    ineq = zeros(Polynomial{DynamicPolynomials.Commutative{DynamicPolynomials.CreationOrder}, Graded{LexOrder}, Float64}, 0) 
+    # expr = 0
+    eq = zeros(Polynomial{DynamicPolynomials.Commutative{DynamicPolynomials.CreationOrder}, Graded{LexOrder}, Float64}, 0) 
+
+    # PURSE constraints
+    for (i,q) in enumerate(q_backproj)
+        push!(ineq, -[vars;1]'*[q.H  q.c;  q.c'  q.d]*[vars;1])
+    end
+    for (i,q) in enumerate(q_front)
+        push!(ineq, -[vars;1]'*[q.H  q.c;  q.c'  q.d]*[vars;1])
+    end
+    for (i,q) in enumerate(q_eqs)
+        Q = Symmetric([q.H  q.c;  q.c'  q.d])
+        push!(eq, [vars;1]'*[q.H  q.c;  q.c'  q.d]*[vars;1])
+    end
+
+    # 90 degree rotation constraint
+    if dim == 7
+        push!(ineq, R'*center[1:4])
+    end
+
+    # solve
+    pop = [obj; ineq; eq]
+    order = order
+    opt, sol, data, gap = cs_tssos_first(pop, vars, order, numeq=length(eq), TS=false, CS="MF", QUIET=silent, solution=true, refine=false)
+
+    if data.SDP_status != MOI.OPTIMAL
+        @warn "[bounding_sphere] Returned status $(data.SDP_status). Results may not be lower bound!"
+        gap = -1
+    end
+
+    # CONVERT TO RADIUS
+    rad = sqrt(-opt)
+
+    return rad, data.SDP_status
 end

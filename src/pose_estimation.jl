@@ -82,7 +82,6 @@ function gaussianpose(prob; kwargs...)
 end
 
 
-
 """
     ransagpose(y, r, b, camK; T=1000)
 
@@ -160,6 +159,7 @@ function ransagpose(y, r, b, camK; T=1000)
     return R, t, purse_empty
 end
 
+ransagpose(prob; kwargs...) = ransagpose(prob.y, prob.r, prob.b, prob.camK; kwargs...)
 
 """
     gaussianpose_sdplr(y, r, b, camK; silent=true)
@@ -352,7 +352,252 @@ function maxmarginpose(q_front, q_backproj, q_eqs; lowerb=-10, upperb=10, silent
     return R_est, t_est, tight, termination_status(model)
 end
 
-## TODO:
-# - try higher order relaxation
-# - try additional constraints (on sign of margin?)
-# - why does 0.6 work?
+
+"""
+Compute the "central pose" estimate.
+
+Overrides backproj constraints.
+"""
+function conformalpose(prob; order=2, silent=false)
+    return conformalpose(prob.y, prob.r, prob.b, prob.camK; p=prob.p, order=order, silent=silent)
+end
+
+function conformalpose(y, r, b, camK; p=Inf, order=2, silent=false)
+    (p == 2 || p == Inf) || error("only accepts `p=2` or `p=Inf`")
+    if p == 2
+        q_front, _ = uncertaintyset_l2(y, r, b, camK)
+        q_eqs = SO3_constraints()
+    else
+        ## Rotation Version
+        # q_front, _ = uncertaintyset_linf_R(y, r, b, camK)
+        # q_eqs = SO3_constraints()
+        ## Quaternion Version
+        q_front, _ = uncertaintyset_linf_q(y, r, b, camK)
+        q_eqs = q_constraints()
+    end
+
+    N = size(r,1)
+    if p == 2
+        @polyvar R[1:3,1:3]
+    else
+        @polyvar R[1:4] # quaternion
+    end
+    @polyvar t[1:3]
+    @polyvar γ[1:N]
+    vars = [vec(R); t; γ]
+
+    # Objective
+    obj = sum(γ.^2)
+
+    e3 = [0; 0; 1]
+
+    # Constraints
+    # expr ≥ 0
+    ineq = Vector{TSSOS.Poly{Float64}}()
+    # expr = 0
+    eq = Vector{TSSOS.Poly{Float64}}()
+
+    # multiplicative margin on backproj constraints
+    X = [vec(R); t; 1]*[vec(R); t; 1]'
+    for i = 1:N
+        iy3 = (I - y[:,i]*e3')
+
+        if p == Inf
+            for j = 1:2
+                ej = zeros(3); ej[j] = 1
+                # TODO: same margin?
+
+                ## Quaternion version
+                # positive term
+                H = zeros(TSSOS.Poly{Float64},7,7)
+                H[1:4, 1:4] = (-Ω1((iy3*camK)'*ej)*Ω2(b[:,i])) - r[i]*γ[i]*(-Ω1(camK'*e3)*Ω2(b[:,i]))
+                H += H'
+                c = [zeros(4); (ej'*iy3*camK)' - r[i]*γ[i]*(e3'*camK)']
+                Q = [H  c;  c'  0.]
+                push!(ineq, -tr(Q*X))
+
+                # negative term
+                H = zeros(TSSOS.Poly{Float64},7,7)
+                H[1:4, 1:4] = -(-Ω1((iy3*camK)'*ej)*Ω2(b[:,i])) - r[i]*γ[i]*(-Ω1(camK'*e3)*Ω2(b[:,i]))
+                H += H'
+                c = [zeros(4); -(ej'*iy3*camK)' - r[i]*γ[i]*(e3'*camK)']
+                Q = [H  c;  c'  0.]
+                push!(ineq, -tr(Q*X))
+            end
+        else # p == 2
+            kr_bK = kron(b[:,i]', camK)
+            H = zeros(TSSOS.Poly{Float64},12,12)
+            H[1:9,1:9] = (iy3*kr_bK)'*(iy3*kr_bK) - γ[i]*r[i]^2*([0 0 1.]*kr_bK)'*([0 0 1.]*kr_bK)
+            H[10:12,10:12] = (iy3*camK)'*(iy3*camK) - γ[i]*r[i]^2*([0 0 1.]*camK)'*([0 0 1.]*camK)
+            H[10:12,1:9] = (iy3*camK)'*(iy3*kr_bK) - γ[i]*r[i]^2*([0 0 1.]*camK)'*([0 0 1.]*kr_bK)
+            H[1:9,10:12] = H[10:12,1:9]'
+
+            Q = [H zeros(12); zeros(13)']
+            push!(ineq, -tr(Q*X))
+        end
+    end
+
+    # no margin on chirality constraints
+    slack = 1e-3
+    for (i,q) in enumerate(q_front)
+        Q = Symmetric([q.H  q.c;  q.c'  q.d])
+        push!(ineq, -tr(Q*X) - slack)
+    end
+
+    # no margin on SO(3) constraints
+    for (i,q) in enumerate(q_eqs)
+        Q = Symmetric([q.H  q.c;  q.c'  q.d])
+        push!(eq, tr(Q*X))
+    end
+
+    # bounds on margin
+    lowerb = 0.05
+    upperb = 10.0
+    append!(ineq, γ  .- lowerb) # ≥ 0
+    append!(ineq, upperb .- γ) # ≥ 0
+
+    # solve!
+    pop = [obj; ineq; eq]
+    opt, sol, data, gap = cs_tssos_first(pop, vars, order, numeq=length(eq), TS="block", CS="MD", QUIET=silent, solution=true, refine=true)
+    # MOSEK has SLOW PROGRESS
+
+
+    # Main.@infiltrate
+
+    if data.SDP_status != MOI.OPTIMAL
+        @warn "[conformalpose] Returned status $(data.SDP_status). Results may not be lower bound!"
+        gap = -1
+    end
+
+    R_est = (vars=>sol) .|> R
+    if p == Inf
+        R_est = quat2rotm(normalize(R_est))
+    else
+        R_est = project2SO3(R_est)
+    end
+
+    t_est = (vars=>sol) .|> t
+
+
+    return R_est, t_est, gap, data.SDP_status
+end
+
+
+function conformalpose_local(y, r, b, camK; p=Inf, silent=false)
+    (p == 2 || p == Inf) || error("only accepts `p=2` or `p=Inf`")
+    if p == 2
+        q_front, _ = uncertaintyset_l2(y, r, b, camK)
+        q_eqs = SO3_constraints()
+    else
+        ## Rotation Version
+        # q_front, _ = uncertaintyset_linf_R(y, r, b, camK)
+        # q_eqs = SO3_constraints()
+        ## Quaternion Version
+        q_front, _ = uncertaintyset_linf_q(y, r, b, camK)
+        q_eqs = q_constraints()
+    end
+
+    model = Model(Ipopt.Optimizer)
+
+    if silent
+        set_silent(model)
+    end
+
+    N = size(r,1)
+    if p == 2
+        @variable(model, R[i=1:3,j=1:3], start = randrotation()[i,j])
+    else
+        @variable(model, R[i=1:4], start=normalize(randn(4))[i]) # quaternion
+    end
+    @variable(model, t[1:3])
+    @variable(model, γ[1:N])
+
+    # Objective
+    @objective(model, Min, sum(γ.^2))
+
+    e3 = [0; 0; 1]
+
+    # Constraints
+    # multiplicative margin on backproj constraints
+    X = [vec(R); t; 1]*[vec(R); t; 1]'
+    for i = 1:N
+        iy3 = (I - y[:,i]*e3')
+
+        if p == Inf
+            for j = 1:2
+                ej = zeros(3); ej[j] = 1
+                ## Quaternion version
+                # positive term
+                H = zeros(AffExpr, 7,7)
+                H[1:4, 1:4] = (-Ω1((iy3*camK)'*ej)*Ω2(b[:,i])) - r[i]*γ[i]*(-Ω1(camK'*e3)*Ω2(b[:,i]))
+                H += H'
+                c = [zeros(4); (ej'*iy3*camK)' - r[i]*γ[i]*(e3'*camK)']
+                Q = [H  c;  c'  0.]
+                @constraint(model, -tr(Q*X) >= 0)
+
+                # negative term
+                H = zeros(AffExpr,7,7)
+                H[1:4, 1:4] = -(-Ω1((iy3*camK)'*ej)*Ω2(b[:,i])) - r[i]*γ[i]*(-Ω1(camK'*e3)*Ω2(b[:,i]))
+                H += H'
+                c = [zeros(4); -(ej'*iy3*camK)' - r[i]*γ[i]*(e3'*camK)']
+                Q = [H  c;  c'  0.]
+                @constraint(model, -tr(Q*X) >= 0)
+            end
+        else # p == 2
+            kr_bK = kron(b[:,i]', camK)
+            H = zeros(AffExpr,12,12)
+            H[1:9,1:9] = (iy3*kr_bK)'*(iy3*kr_bK) - γ[i]*r[i]^2*([0 0 1.]*kr_bK)'*([0 0 1.]*kr_bK)
+            H[10:12,10:12] = (iy3*camK)'*(iy3*camK) - γ[i]*r[i]^2*([0 0 1.]*camK)'*([0 0 1.]*camK)
+            H[10:12,1:9] = (iy3*camK)'*(iy3*kr_bK) - γ[i]*r[i]^2*([0 0 1.]*camK)'*([0 0 1.]*kr_bK)
+            H[1:9,10:12] = H[10:12,1:9]'
+
+            Q = [H zeros(12); zeros(13)']
+            @constraint(model, -tr(Q*X) >= 0)
+        end
+    end
+
+    # no margin on chirality constraints
+    slack = 1e-3
+    for (i,q) in enumerate(q_front)
+        Q = Symmetric([q.H  q.c;  q.c'  q.d])
+        @constraint(model, -tr(Q*X) - slack >= 0)
+    end
+
+    # no margin on SO(3) constraints
+    for (i,q) in enumerate(q_eqs)
+        Q = Symmetric([q.H  q.c;  q.c'  q.d])
+        @constraint(model, tr(Q*X) == 0)
+    end
+
+    # bounds on margin
+    lowerb = 0.05
+    upperb = 10.0
+    @constraint(model, γ  .- lowerb ≥ 0)
+    @constraint(model, upperb .- γ ≥ 0)
+
+    # solve!
+    optimize!(model)
+
+    if termination_status(model) != MOI.OPTIMAL
+        @warn "[conformalpose] Returned status $(termination_status(model)). Results may not be lower bound!"
+        gap = -1
+    else
+        gap = nothing
+    end
+
+    R_est = value.(R)
+    if p == Inf
+        R_est = quat2rotm(normalize(R_est))
+    else
+        R_est = project2SO3(R_est)
+    end
+
+    t_est = value.(t)
+
+
+    return R_est, t_est, gap, termination_status(model)
+end
+
+function conformalpose_local(prob; silent=false)
+    return conformalpose_local(prob.y, prob.r, prob.b, prob.camK; p=prob.p, silent=silent)
+end

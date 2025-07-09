@@ -48,8 +48,8 @@ H_t = inv(P*inv(H)*P')
 
 # bounding box approach
 # H_t = diagm(ones(3))
-bounds, gaps, statuses = refine_bbox(center, H, H_t, y, r, b, camK; mode=2, order=1, silent=true)
-bounds2, gaps2, statuses2 = refine_bbox(center, H, H_t, y, r, b, camK; mode=3, order=1, silent=true)
+bounds, gaps, statuses = refine_bbox(center, H, y, r, b, camK; p=2, mode=2, order=1, H_t=H_t, silent=true)
+bounds2, gaps2, statuses2 = refine_bbox(center, H, y, r, b, camK; p=2, mode=3, order=1, H_t=H_t, silent=true) # best
 
 
 ## Visualize
