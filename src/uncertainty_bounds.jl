@@ -56,7 +56,7 @@ function bounding_ellipse(center, prob; solver=Mosek.Optimizer, silent=false)
 end
 
 
-function bounding_ellipse(center, q_front, q_backproj, q_eqs; solver=Clarabel.Optimizer, silent=false)
+function bounding_ellipse(center, q_front, q_backproj, q_eqs; solver=Mosek.Optimizer, silent=false)
 
     # JuMP model
     model = Model(solver)
@@ -90,10 +90,10 @@ function bounding_ellipse(center, q_front, q_backproj, q_eqs; solver=Clarabel.Op
     @objective(model, Max, log_det_H0)
     @constraint(model, [log_det_H0; 1; triangle_vec(H0)] in MOI.LogDetConeTriangle(dim))
     # @constraint(model, [log_det_H0; triangle_vec(H0)] in MOI.RootDetConeTriangle(dim)) # alt logdet cone
-    # @constraint(model, H0[10:12,10:12] - log_det_H0*diagm(ones(3)) >= 0, PSDCone()) # max minimum eigenvalue
+    # @constraint(model, H0[end-2:end,end-2:end] - log_det_H0*diagm(ones(3)) >= 0, PSDCone()) # max minimum eigenvalue
 
     # alt objective
-    # @objective(model, Max, tr(H0))
+    @objective(model, Max, tr(H0))
 
     # build and constrain M
     # q0 = x'*H0*x + 2(-H0*c)'*x + c'*H0*c <= 1
@@ -383,7 +383,6 @@ function bounding_sphere(center, q_front, q_backproj, q_eqs; order=1, silent=fal
     pop = [obj; ineq; eq]
     order = order
     opt, sol, data, gap = cs_tssos_first(pop, vars, order, numeq=length(eq), TS=false, CS="MD", QUIET=silent, solution=true, refine=false)
-    Main.@infiltrate
 
     if data.SDP_status != MOI.OPTIMAL
         @warn "[bounding_sphere] Returned status $(data.SDP_status). Results may not be lower bound!"
@@ -729,4 +728,79 @@ function bounding_sphere2(center, q_front, q_backproj, q_eqs; order=1, silent=fa
     rad = sqrt(-opt)
 
     return rad, data.SDP_status
+end
+
+
+"""
+RPY angular bounds
+"""
+function angular_bounds_rpy(center, H, prob; silent=false, order=2)
+    Rc = reshape(center[1:9],3,3)
+    # can marginalize out positions via projection
+    P = [diagm(ones(9)) zeros(9,3)]
+    H_r = inv(P*inv(H)*P')
+
+    # TEMP: get constraints
+    q_front, q_backproj = uncertaintyset_l2(prob.y, prob.r, prob.b, prob.camK)
+
+    @polyvar c[1:3]
+    @polyvar s[1:3]
+    @polyvar t[1:3]
+    vars = [c; s; t]
+
+    Rx = [1 0 0; 0 c[1] -s[1]; 0 s[1] c[1]]
+    Ry = [c[2] 0 s[2]; 0 1 0; -s[2] 0 c[2]]
+    Rz = [c[3] s[3] 0; -s[3] c[3] 0; 0 0 1]
+
+    # solve for each axis
+    Δθs = Vector{Any}(undef, 3)
+    status_sdp = Vector{MOI.TerminationStatusCode}(undef, 3)
+    gaps = -ones(3)
+    for i = 1:3
+        R = Rx*Ry*Rz*Rc
+
+        # objective: minimize cos(θ)
+        obj = c[i]
+        
+        # constraints
+        # expr ≥ 0
+        ineq = Vector{TSSOS.Poly{Float64}}()
+        push!(ineq, 1 - (vec(R) - vec(Rc))'*H_r*(vec(R) - vec(Rc)))
+        
+        # c > 0 forces to be within π/2 of center--this is an assumption
+        # but if it does not hold these bounds are the wrong approach anyways
+        append!(ineq, c)
+
+        # extra constraints
+        # for (i,q) in enumerate(q_backproj)
+        #     push!(ineq, -[vec(R);t;1]'*[q.H  q.c;  q.c'  q.d]*[vec(R);t;1])
+        # end
+        # for (i,q) in enumerate(q_front)
+        #     push!(ineq, -[vec(R);t;1]'*[q.H  q.c;  q.c'  q.d]*[vec(R);t;1])
+        # end
+
+        eq = Vector{TSSOS.Poly{Float64}}()
+        for i = 1:3
+            push!(eq, s[i]^2 + c[i]^2 - 1)
+        end
+
+        # Solve with TSSOS
+        pop = [obj; ineq; eq]
+        opt, sol, data, gap = cs_tssos_first(pop, vars, order, numeq=length(eq), TS="MD", QUIET=silent, solution=true, refine=false)
+
+        if !silent
+            println("SDP status: $(data.SDP_status)")
+            # println("Loc status: $(refine_status)")
+        end
+
+        R_est = project2SO3(reshape([r(vars=>sol) for r in vec(R)],3,3))
+        Rc = project2SO3(Rc)
+
+        # save
+        Δθs[i] = roterror(R_est, Rc)
+        status_sdp[i] = data.SDP_status
+        gaps[i] = gap
+    end
+
+    return Δθs, status_sdp, gaps
 end

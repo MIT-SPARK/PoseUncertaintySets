@@ -20,8 +20,8 @@ probi = get_problem(keypoint_datai, object_id, frame)
 
 # Pose estimation
 # R_est, t_est, purse_empty = ransagpose(prob2)
-R_est, t_est, gap, SDP_status = gaussianpose(prob2; silent=true, order=2)
-# R_est, t_est, gap, SDP_status = maxmarginpose(prob2)
+# R_est, t_est, gap, SDP_status = gaussianpose(prob2; silent=true, order=2)
+R_est, t_est, gap, SDP_status = maxmarginpose(prob2)
 # R_est, t_est, gap, SDP_status = conformalpose(probi; order=2, silent=false)
 # R_est, t_est, gap, SDP_status = conformalpose_local(probi; silent=true)
 
