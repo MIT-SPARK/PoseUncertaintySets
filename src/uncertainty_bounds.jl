@@ -125,14 +125,17 @@ end
 
 
 """
-    angular_bounds(center, H; silent=true)
+    angular_bounds_perturbation(center, H; silent=true)
 
 Compute angular bounds given center, ellipse.
 
 We marginalize out positions via projection, 
 and assume `cos(θ) > 0`.
+
+This version is wrong! It does not give true bounds,
+only the amount that can be perturbed in a given direction.
 """
-function angular_bounds(center, H; silent=false, order=2)
+function angular_bounds_perturbation(center, H; silent=false, order=2)
     Rc = reshape(center[1:9],3,3)
     # can marginalize out positions via projection
     P = [diagm(ones(9)) zeros(9,3)]
@@ -383,6 +386,7 @@ function bounding_sphere(center, q_front, q_backproj, q_eqs; order=1, silent=fal
     pop = [obj; ineq; eq]
     order = order
     opt, sol, data, gap = cs_tssos_first(pop, vars, order, numeq=length(eq), TS=false, CS="MD", QUIET=silent, solution=true, refine=false)
+    Main.@infiltrate
 
     if data.SDP_status != MOI.OPTIMAL
         @warn "[bounding_sphere] Returned status $(data.SDP_status). Results may not be lower bound!"
@@ -732,9 +736,14 @@ end
 
 
 """
-RPY angular bounds
+RPY angular bounds.
+
+Current status: solves with SLOW_PROGRESS for full PURSE constraints.
+Solves to optimality with only ellipse constraints, but bounds are all 90 deg
+
+TODO: try with a quaternion ellipse? Try with bounding sphere?
 """
-function angular_bounds_rpy(center, H, prob; silent=false, order=2)
+function angular_bounds_rpy(center, H, prob; silent=false, order=3)
     Rc = reshape(center[1:9],3,3)
     # can marginalize out positions via projection
     P = [diagm(ones(9)) zeros(9,3)]
@@ -771,6 +780,14 @@ function angular_bounds_rpy(center, H, prob; silent=false, order=2)
         # but if it does not hold these bounds are the wrong approach anyways
         append!(ineq, c)
 
+        # this constraint prevents degenerate solutions where s = 0
+        tol = 1e-5
+        append!(ineq, -(s .- tol))
+
+        # for i = 1:3
+        #     push!(ineq, s[i]^2 + c[i]^2 - 1)
+        # end
+
         # extra constraints
         # for (i,q) in enumerate(q_backproj)
         #     push!(ineq, -[vec(R);t;1]'*[q.H  q.c;  q.c'  q.d]*[vec(R);t;1])
@@ -786,21 +803,112 @@ function angular_bounds_rpy(center, H, prob; silent=false, order=2)
 
         # Solve with TSSOS
         pop = [obj; ineq; eq]
-        opt, sol, data, gap = cs_tssos_first(pop, vars, order, numeq=length(eq), TS="MD", QUIET=silent, solution=true, refine=false)
+        opt, sol, data, gap = cs_tssos_first(pop, vars, order, numeq=length(eq), CS="MD", TS="block", QUIET=silent, solution=true, refine=false)
 
         if !silent
             println("SDP status: $(data.SDP_status)")
             # println("Loc status: $(refine_status)")
         end
 
-        R_est = project2SO3(reshape([r(vars=>sol) for r in vec(R)],3,3))
-        Rc = project2SO3(Rc)
+        # R_est = project2SO3((vars => sol) .|> R)
+        # Rc = project2SO3(Rc)
+
+        c_val = (vars=>sol) .|> c
+        s_val = (vars=>sol) .|> s
+        eq_val = (vars=>sol) .|> eq
+
+        (sum(abs.(eq_val) .> 1e-3) == 0) || @warn "At least one equality constraint violated"
 
         # save
-        Δθs[i] = roterror(R_est, Rc)
+        # Δθs[i] = roterror(R_est, Rc)
+        Δθs[i] = atan(s_val[i], c_val[i])*180/π
         status_sdp[i] = data.SDP_status
         gaps[i] = gap
+
+        # Main.@infiltrate
     end
 
     return Δθs, status_sdp, gaps
+end
+
+
+
+"""
+Quaternion version of bounding sphere, implemented in JuMP.
+
+Mainly intended for comparison with the TSSOS version in order to derive S-Lemma.
+"""
+function bounding_sphere_jump(center, y, r, b, camK; p=2, order=1, silent=false)
+    (p == Inf) || error("only accepts `p=Inf`")
+
+    q_front, q_backproj = uncertaintyset_linf_q(y, r, b, camK)
+    q_eqs = q_constraints()
+
+    return bounding_sphere_jump(center, q_front, q_backproj, q_eqs; order=order, silent=silent)
+end
+
+function bounding_sphere_jump(center, prob; order=1, silent=false)
+    return bounding_sphere_jump(center, prob.y, prob.r, prob.b, prob.camK; p=prob.p, order=order, silent=silent)
+end
+
+function bounding_sphere_jump(center, q_front, q_backproj, q_eqs; order=1, silent=false)
+    model = Model()
+    if silent
+        set_silent(model)
+    end
+    dim = 1+7+4*4+4*3+3*3 # [1; q; t; q², qt, t²]
+    @variable(model, X[1:dim,1:dim] ∈ PSDCone())
+    @constraint(model, X[1,1] == 1)
+
+    # objective
+    # minimize radius of ellipse centered at `center`
+    W = [I -center; -center' center'*center]
+    @objective(model, Max, tr(X[1:8,1:8]*W))
+
+    # standard constraints
+    for (i,q) in enumerate(q_backproj)
+        @constraint(model, tr([q.H  q.c;  q.c'  q.d]*X[1:8,1:8]) <= 0)
+    end
+    for (i,q) in enumerate(q_front)
+        @constraint(model, tr([q.H  q.c;  q.c'  q.d]*X[1:8,1:8]) <= 0)
+    end
+    for (i,q) in enumerate(q_eqs)
+        @constraint(model, tr([q.H  q.c;  q.c'  q.d]*X[1:8,1:8]) == 0)
+    end
+
+    # 90 degree rotation constraint
+    @constraint(model, X[1,2:5]'*center[1:4] >= 0)
+
+    # redundant EQUALITY constraints
+    # q² = q²
+    @constraint(model, [i=1:4], X[ 8+i,1] == X[1+i,2])
+    @constraint(model, [i=1:3], X[12+i,1] == X[2+i,3])
+    @constraint(model, [i=1:2], X[15+i,1] == X[3+i,4])
+    @constraint(model, X[18,1] == X[5,5])
+    # t² = t²
+    @constraint(model, [i=1:3], X[30+i,1] == X[5+i,6])
+    @constraint(model, [i=1:2], X[33+i,1] == X[6+i,7])
+    @constraint(model, X[36,1] == X[8,8])
+    # qt
+    @constraint(model, [i=1:4], X[18+i,1] == X[6,1+i])
+    @constraint(model, [i=1:4], X[22+i,1] == X[7,1+i])
+    @constraint(model, [i=1:4], X[26+i,1] == X[8,1+i])
+    # qt²
+
+    # q²t
+
+    # q²t²
+
+
+    Main.@infiltrate
+
+    # solve
+    optimize!(model)
+
+    opt = objective_value(model)
+
+    # CONVERT TO RADIUS
+    rad = sqrt(opt)
+
+    return rad, termination_status(model)
 end
