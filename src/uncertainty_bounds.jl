@@ -386,7 +386,6 @@ function bounding_sphere(center, q_front, q_backproj, q_eqs; order=1, silent=fal
     pop = [obj; ineq; eq]
     order = order
     opt, sol, data, gap = cs_tssos_first(pop, vars, order, numeq=length(eq), TS=false, CS="MD", QUIET=silent, solution=true, refine=false)
-    Main.@infiltrate
 
     if data.SDP_status != MOI.OPTIMAL
         @warn "[bounding_sphere] Returned status $(data.SDP_status). Results may not be lower bound!"
@@ -646,95 +645,6 @@ function premarg_bounds(center, y, r, b, camK; silent=true, order=2)
 end
 
 
-
-
-"""
-Test bounding sphere for 2nd order
-"""
-function bounding_sphere2(center, y, r, b, camK; p=2, order=1, silent=false)
-    (p == 2 || p == Inf) || error("only accepts `p=2` or `p=Inf`")
-
-    if p == 2
-        q_front, q_backproj = uncertaintyset_l2(y, r, b, camK)
-        q_eqs = SO3_constraints()
-    else
-        q_front, q_backproj = uncertaintyset_linf_R(y, r, b, camK)
-        q_new = []
-        for q1 in q_backproj, q2 in q_backproj
-            H = -q1.c*q2.c'
-            H += H'
-            push!(q_new, Quadratic(H, zeros(12), 0.)) # ≤ 0
-        end
-        q_front = [q_front; q_new]
-        q_eqs = SO3_constraints()
-    end
-
-    return bounding_sphere2(center, q_front, q_backproj, q_eqs; order=order, silent=silent)
-end
-
-function bounding_sphere2(center, prob; order=1, silent=false)
-    return bounding_sphere2(center, prob.y, prob.r, prob.b, prob.camK; p=prob.p, order=order, silent=silent)
-end
-
-
-function bounding_sphere2(center, q_front, q_backproj, q_eqs; order=1, silent=false)
-    dim = length(center)
-
-    model = Model(Mosek.Optimizer)
-    @variable(model, X[1:8,1:13])
-
-    # objective
-    W = [I -center; -center' center'*center]
-    obj = -[vec(R); t;1]'*W*[vec(R); t;1] # equivalent to minimizing radius of ellipse centered at `center`
-    @objective(model, Min, obj)
-
-    # minimize individual ones
-    # tc = center[end-2:end]
-    # obj = -(t - tc)'*(t - tc)
-    # qc = center[1:4]
-    # obj = -(R - qc)'*(R - qc)
-    # this is identical to PURSE bounds!
-
-    # constraints
-    # expr ≥ 0
-    ineq = zeros(Polynomial{DynamicPolynomials.Commutative{DynamicPolynomials.CreationOrder}, Graded{LexOrder}, Float64}, 0) 
-    # expr = 0
-    eq = zeros(Polynomial{DynamicPolynomials.Commutative{DynamicPolynomials.CreationOrder}, Graded{LexOrder}, Float64}, 0) 
-
-    # PURSE constraints
-    for (i,q) in enumerate(q_backproj)
-        push!(ineq, -[vars;1]'*[q.H  q.c;  q.c'  q.d]*[vars;1])
-    end
-    for (i,q) in enumerate(q_front)
-        push!(ineq, -[vars;1]'*[q.H  q.c;  q.c'  q.d]*[vars;1])
-    end
-    for (i,q) in enumerate(q_eqs)
-        Q = Symmetric([q.H  q.c;  q.c'  q.d])
-        push!(eq, [vars;1]'*[q.H  q.c;  q.c'  q.d]*[vars;1])
-    end
-
-    # 90 degree rotation constraint
-    if dim == 7
-        push!(ineq, R'*center[1:4])
-    end
-
-    # solve
-    pop = [obj; ineq; eq]
-    order = order
-    opt, sol, data, gap = cs_tssos_first(pop, vars, order, numeq=length(eq), TS=false, CS="MF", QUIET=silent, solution=true, refine=false)
-
-    if data.SDP_status != MOI.OPTIMAL
-        @warn "[bounding_sphere] Returned status $(data.SDP_status). Results may not be lower bound!"
-        gap = -1
-    end
-
-    # CONVERT TO RADIUS
-    rad = sqrt(-opt)
-
-    return rad, data.SDP_status
-end
-
-
 """
 RPY angular bounds.
 
@@ -838,46 +748,94 @@ Quaternion version of bounding sphere, implemented in JuMP.
 
 Mainly intended for comparison with the TSSOS version in order to derive S-Lemma.
 """
-function bounding_sphere_jump(center, y, r, b, camK; p=2, order=1, silent=false)
-    (p == Inf) || error("only accepts `p=Inf`")
-
-    q_front, q_backproj = uncertaintyset_linf_q(y, r, b, camK)
-    q_eqs = q_constraints()
-
-    return bounding_sphere_jump(center, q_front, q_backproj, q_eqs; order=order, silent=silent)
-end
-
 function bounding_sphere_jump(center, prob; order=1, silent=false)
-    return bounding_sphere_jump(center, prob.y, prob.r, prob.b, prob.camK; p=prob.p, order=order, silent=silent)
+    return bounding_sphere_jump(center, prob.y, prob.r, prob.b, prob.camK; order=order, silent=silent)
 end
 
-function bounding_sphere_jump(center, q_front, q_backproj, q_eqs; order=1, silent=false)
+function bounding_sphere_jump(center, y, r, b, K; order=1, silent=false)
     model = Model()
     if silent
         set_silent(model)
     end
-    dim = 1+7+4*4+4*3+3*3 # [1; q; t; q², qt, t²]
+    dim = 1+7+28 # [1; q; t; q[1]*q; q[2]*q[2:4]; q[3]*q[3:4]; q[4]^2; t[1]*q; t[2]*q; t[3]*q; t[1]*t; t[2]*t[2:3]; t[3]^2]
     @variable(model, X[1:dim,1:dim] ∈ PSDCone())
     @constraint(model, X[1,1] == 1)
 
     # objective
     # minimize radius of ellipse centered at `center`
-    W = [I -center; -center' center'*center]
+    W = [center'*center -center'; -center I]
     @objective(model, Max, tr(X[1:8,1:8]*W))
 
     # standard constraints
-    for (i,q) in enumerate(q_backproj)
-        @constraint(model, tr([q.H  q.c;  q.c'  q.d]*X[1:8,1:8]) <= 0)
+    N = size(y,2)
+    e3 = [0;0;1]
+    for i = 1:N
+        # front of camera
+        H = zeros(7,7)
+        H[1:4, 1:4] = -(-Ω1(K'*e3)*Ω2(b[:,i]))
+        H += H'
+        c = -[zeros(4); K'*e3]
+        @constraint(model, tr([0 c'; c H]*X[1:8,1:8]) <= 0)
+
+        # backprojection
+        iy3 = (I - y[:,i]*e3')
+        for j = 1:2
+            ej = zeros(3); ej[j] = 1
+
+            H = zeros(7,7)
+            H[1:4, 1:4] = (-Ω1((iy3*K)'*ej)*Ω2(b[:,i])) - r[i]*(-Ω1(K'*e3)*Ω2(b[:,i]))
+            H += H'
+            c = [zeros(4); (ej'*iy3*K)' - r[i]*(e3'*K)']
+            @constraint(model, tr([0 c'; c H]*X[1:8,1:8]) <= 0)
+
+            # negative term
+            H = zeros(7,7)
+            H[1:4, 1:4] = -(-Ω1((iy3*K)'*ej)*Ω2(b[:,i])) - r[i]*(-Ω1(K'*e3)*Ω2(b[:,i]))
+            H += H'
+            c = [zeros(4); -(ej'*iy3*K)' - r[i]*(e3'*K)']
+            @constraint(model, tr([0 c'; c H]*X[1:8,1:8]) <= 0)
+        end
     end
-    for (i,q) in enumerate(q_front)
-        @constraint(model, tr([q.H  q.c;  q.c'  q.d]*X[1:8,1:8]) <= 0)
-    end
-    for (i,q) in enumerate(q_eqs)
-        @constraint(model, tr([q.H  q.c;  q.c'  q.d]*X[1:8,1:8]) == 0)
-    end
+    # quaternion
+    @constraint(model, tr(X[2:5,2:5]) == 1)
 
     # 90 degree rotation constraint
     @constraint(model, X[1,2:5]'*center[1:4] >= 0)
+
+    # redundant inequalities: backprojection
+    function bp(i,j)
+        iy3 = (I - y[:,i]*e3')
+        ej = zeros(3); ej[j] = 1
+
+        H = zeros(7,7)
+        H[1:4, 1:4] = (-Ω1((iy3*K)'*ej)*Ω2(b[:,i])) - r[i]*(-Ω1(K'*e3)*Ω2(b[:,i]))
+        H += H'
+        c = [zeros(4); (ej'*iy3*K)' - r[i]*(e3'*K)']
+        return H,c
+    end
+
+    for i1 = 1:N, i2 = 1:N, j = 1:2
+        H1, c1 = backproj(i1,j)
+        H2, c2 = backproj(i2,j)
+        expr = tr(X[6:8,6:8]*(c1*c2' + c2*c1')/2)
+
+        tX = triangle_vec(X[9:18,9:18])
+        qkronqΔ = [tX[1:10]; tX[[2,3,5,8,3,3,12,13,14,12,15,16,17,18,19,17]]; tX[20:25];
+                   tX[[23,26,27,28,4,16,29,9,16,17,18,19,29,16,13,30]];
+                   tX[[19,17,20,33,27,30,33,6,30,31,32,30,21,34,42,31]]; # 49:64
+                   tX[[34,36,37,38,39,40,38,41,42,43,32,42,44,45,7,22]];
+                   tX[[9,10,8,14,19,25,37,38,39,40,46,22,23,24,25,23]];
+                   tX[[26,27,50,38,41,42,43,47,50,37,38,39,40,38,41,42]];
+                   tX[[43,39,42,44,45,40,43,45,46,47,48,49,25,28,43,52,48,51,53,54,49,52,54,55]]]
+        # checked! this is triangle vec of kron(q,q)*kron(q,q)'
+        # TODO: convert to (symmetric) matrix, repeat with q*vec(t*q')'
+        
+        # dX = diag(X)
+        # qkronq = diagm([dX[9:12]; dX[10]; dX[13:15]; dX[11]; dX[14]; dX[16:17]; dX[12]; dX[15]; dX[17:18]])
+        # next: off-diagonals
+        
+        expr += 1
+    end
 
     # redundant EQUALITY constraints
     # q² = q²
@@ -894,13 +852,13 @@ function bounding_sphere_jump(center, q_front, q_backproj, q_eqs; order=1, silen
     @constraint(model, [i=1:4], X[22+i,1] == X[7,1+i])
     @constraint(model, [i=1:4], X[26+i,1] == X[8,1+i])
     # qt²
-
+    # @constraint(model, X[6:8,19:30] .== X)
     # q²t
 
     # q²t²
 
 
-    Main.@infiltrate
+    # Main.@infiltrate
 
     # solve
     optimize!(model)
