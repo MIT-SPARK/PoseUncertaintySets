@@ -748,12 +748,12 @@ Quaternion version of bounding sphere, implemented in JuMP.
 
 Mainly intended for comparison with the TSSOS version in order to derive S-Lemma.
 """
-function bounding_sphere_jump(center, prob; order=1, silent=false)
-    return bounding_sphere_jump(center, prob.y, prob.r, prob.b, prob.camK; order=order, silent=silent)
+function bounding_sphere_jump(center, prob; silent=false)
+    return bounding_sphere_jump(center, prob.y, prob.r, prob.b, prob.camK; silent=silent)
 end
 
-function bounding_sphere_jump(center, y, r, b, K; order=1, silent=false)
-    model = Model()
+function bounding_sphere_jump(center, y, r, b, K; silent=false)
+    model = Model(Mosek.Optimizer)
     if silent
         set_silent(model)
     end
@@ -803,41 +803,58 @@ function bounding_sphere_jump(center, y, r, b, K; order=1, silent=false)
     @constraint(model, X[1,2:5]'*center[1:4] >= 0)
 
     # redundant inequalities: backprojection
-    function bp(i,j)
-        iy3 = (I - y[:,i]*e3')
-        ej = zeros(3); ej[j] = 1
+    ## make variables
+    tX = triangle_vec(X[9:18,9:18])
+    qqqqΔ = [tX[1:10]; tX[[2,3,5,8,3,3,12,13,14,12,15,16,17,18,19,17]]; tX[20:25];
+                tX[[23,26,27,28,4,16,29,9,16,17,18,19,29,16,13,30]];
+                tX[[19,17,20,33,27,30,33,6,30,31,32,30,21,34,42,31]]; # 49:64
+                tX[[34,36,37,38,39,40,38,41,42,43,32,42,44,45,7,22]];
+                tX[[9,10,8,14,19,25,37,38,39,40,46,22,23,24,25,23]];
+                tX[[26,27,50,38,41,42,43,47,50,37,38,39,40,38,41,42]];
+                tX[[43,39,42,44,45,40,43,45,46,47,48,49,25,28,43,52,48,51,53,54,49,52,54,55]]]
+    # convert to symmetric matrix
+    qqqq = X[9:24,9:24]*0
+    qqqq = let
+        counter=1
+        for row = 1:16
+            for col = 1:row
+                qqqq[row,col] = qqqqΔ[counter]
+                counter += 1
+            end
+        end
+        qqqq
+    end
+    # make symmetric
+    qqqq = qqqq + qqqq' - diagm(diag(qqqq))
+    # other symmetric variable
+    qtq = reshape(X[19:30,2:5],4,12) # = q*vec(t*q')'
 
-        H = zeros(7,7)
-        H[1:4, 1:4] = (-Ω1((iy3*K)'*ej)*Ω2(b[:,i])) - r[i]*(-Ω1(K'*e3)*Ω2(b[:,i]))
-        H += H'
-        c = [zeros(4); (ej'*iy3*K)' - r[i]*(e3'*K)']
-        return H,c
+    # add the backproj redundant constraints
+    q_front, q_backproj = uncertaintyset_linf_q(y, r, b, K)
+    for q1 in [q_backproj; q_front], q2 in [q_backproj; q_front]
+        A1 = q1.H[1:4,1:4]; b1 = q1.c[5:7]
+        A2 = q2.H[1:4,1:4]; b2 = q2.c[5:7]
+        expr = tr(X[6:8,6:8]*(b1*b2' + b2*b1')/2)
+        expr += tr(qqqq*kron(A1,A2))
+        expr += tr(qtq'*(kron(A1,b2') + kron(A2,b1')))
+        
+        @constraint(model, expr >= 0)
     end
 
-    for i1 = 1:N, i2 = 1:N, j = 1:2
-        H1, c1 = backproj(i1,j)
-        H2, c2 = backproj(i2,j)
-        expr = tr(X[6:8,6:8]*(c1*c2' + c2*c1')/2)
+    # redundant equalities: q² = 1
+    @constraint(model, tr(X[2:5,19:22]) == X[1,6]) # t1
+    @constraint(model, tr(X[2:5,23:26]) == X[1,7]) # t2
+    @constraint(model, tr(X[2:5,27:30]) == X[1,8]) # t3
 
-        tX = triangle_vec(X[9:18,9:18])
-        qkronqΔ = [tX[1:10]; tX[[2,3,5,8,3,3,12,13,14,12,15,16,17,18,19,17]]; tX[20:25];
-                   tX[[23,26,27,28,4,16,29,9,16,17,18,19,29,16,13,30]];
-                   tX[[19,17,20,33,27,30,33,6,30,31,32,30,21,34,42,31]]; # 49:64
-                   tX[[34,36,37,38,39,40,38,41,42,43,32,42,44,45,7,22]];
-                   tX[[9,10,8,14,19,25,37,38,39,40,46,22,23,24,25,23]];
-                   tX[[26,27,50,38,41,42,43,47,50,37,38,39,40,38,41,42]];
-                   tX[[43,39,42,44,45,40,43,45,46,47,48,49,25,28,43,52,48,51,53,54,49,52,54,55]]]
-        # checked! this is triangle vec of kron(q,q)*kron(q,q)'
-        # TODO: convert to (symmetric) matrix, repeat with q*vec(t*q')'
-        
-        # dX = diag(X)
-        # qkronq = diagm([dX[9:12]; dX[10]; dX[13:15]; dX[11]; dX[14]; dX[16:17]; dX[12]; dX[15]; dX[17:18]])
-        # next: off-diagonals
-        
-        expr += 1
-    end
+    @constraint(model, tr(X[19:22,19:22]) == X[6,6]) # t1^2 
+    @constraint(model, tr(X[23:26,23:26]) == X[7,7]) # t2^2
+    @constraint(model, tr(X[27:30,27:30]) == X[8,8]) # t3^2
 
-    # redundant EQUALITY constraints
+    @constraint(model, tr(X[27:30,19:22]) == X[8,6]) # t1 t3
+    @constraint(model, tr(X[23:26,19:22]) == X[7,6]) # t1 t2
+    @constraint(model, tr(X[27:30,23:26]) == X[8,7]) # t2 t3
+
+    # moment constraints
     # q² = q²
     @constraint(model, [i=1:4], X[ 8+i,1] == X[1+i,2])
     @constraint(model, [i=1:3], X[12+i,1] == X[2+i,3])
@@ -851,22 +868,99 @@ function bounding_sphere_jump(center, y, r, b, K; order=1, silent=false)
     @constraint(model, [i=1:4], X[18+i,1] == X[6,1+i])
     @constraint(model, [i=1:4], X[22+i,1] == X[7,1+i])
     @constraint(model, [i=1:4], X[26+i,1] == X[8,1+i])
-    # qt²
-    # @constraint(model, X[6:8,19:30] .== X)
-    # q²t
+    # qt²  (qt*t = q*t²)
+    @constraint(model, [i=1:4], X[7,18+i] == X[6,22+i])
+    @constraint(model, [i=1:4], X[8,18+i] == X[6,26+i])
+    @constraint(model, [i=1:4], X[8,22+i] == X[7,26+i])
+    @constraint(model, X[2:5,31:33] .== X[6:8,19:22]')
+    @constraint(model, X[2:5,34:35] .== X[7:8,23:26]')
+    @constraint(model, X[2:5,36] .== X[8,27:30])
+    # @constraint(model, X[6:8,19:30] .== X[2:5,31:36])
+    # q²t (qt*q = q²*t)
+    @constraint(model, [i=0:4:8], X[3:5,19+i] .== X[2,(20:22).+i]) # 3
+    @constraint(model, [i=0:4:8], X[4:5,20+i] .== X[3,(21:22).+i]) # 2
+    @constraint(model, [i=0:4:8], X[5,21+i] == X[4,22+i]) # 1
+    @constraint(model, X[2,19:30] .== vec(X[6:8,9:12]'))
+    @constraint(model, X[3,20:22] .== X[6,13:15])
+    @constraint(model, X[3,24:26] .== X[7,13:15])
+    @constraint(model, X[3,28:30] .== X[8,13:15])
+    @constraint(model, X[4,21:22] .== X[6,16:17])
+    @constraint(model, X[4,25:26] .== X[7,16:17])
+    @constraint(model, X[4,29:30] .== X[8,16:17])
+    @constraint(model, X[5,[22,26,30]] .== X[6:8,18])
+    # @constraint(model, X[2:5,19:30] .== X[6:8,9:18])
+    # q²t² (q²*t² = qt*qt)
+    # 18 repeated
+    @constraint(model, X[24:26,19] .== X[23,20:22])
+    @constraint(model, X[28:30,19] .== X[27,20:22])
+    @constraint(model, X[28:30,23] .== X[27,24:26]) # q1--t2t3
+    @constraint(model, X[25:26,20] .== X[24,21:22]) # q2--t1t2
+    @constraint(model, X[29:30,20] .== X[28,21:22]) # q2--t1t3
+    @constraint(model, X[29:30,24] .== X[28,25:26]) # q2--t2t3
+    @constraint(model, X[26,21] == X[25,22]) # q3--t1t2
+    @constraint(model, X[30,21] == X[29,22]) # q3--t1t3
+    @constraint(model, X[30,25] == X[29,26]) # q3--t2t3
 
-    # q²t²
+    @constraint(model, X[9:12,31] .== X[19:22,19])
+    @constraint(model, X[13:15,31] .== X[20:22,20])
+    @constraint(model, X[16:17,31] .== X[21:22,21])
+    @constraint(model, X[18,31] == X[22,22]) # col 31
+    @constraint(model, X[9:12,32] .== X[23:26,19])
+    @constraint(model, X[13:15,32] .== X[24:26,20])
+    @constraint(model, X[16:17,32] .== X[25:26,21])
+    @constraint(model, X[18,32] == X[26,22]) # col 32
+    @constraint(model, X[9:12,33] .== X[27:30,19])
+    @constraint(model, X[13:15,33] .== X[28:30,20])
+    @constraint(model, X[16:17,33] .== X[29:30,21])
+    @constraint(model, X[18,33] == X[30,22]) # col 33
+    @constraint(model, X[9:12,34] .== X[23:26,23])
+    @constraint(model, X[13:15,34] .== X[24:26,24])
+    @constraint(model, X[16:17,34] .== X[25:26,25])
+    @constraint(model, X[18,34] == X[26,26]) # col 34
+    @constraint(model, X[9:12,35] .== X[27:30,23])
+    @constraint(model, X[13:15,35] .== X[28:30,24])
+    @constraint(model, X[16:17,35] .== X[29:30,25])
+    @constraint(model, X[18,35] == X[30,26]) # col 35
+    @constraint(model, X[9:12,36] .== X[27:30,27])
+    @constraint(model, X[13:15,36] .== X[28:30,28])
+    @constraint(model, X[16:17,36] .== X[29:30,29])
+    @constraint(model, X[18,36] == X[30,30]) # col 36
 
+    # @constraint(model, X[9:18,31:36] .== X[19:30,19:30])
+    # q⁴ (X[9:18,9:18])
+    @constraint(model, X[14,12] == X[15,11])
+    @constraint(model, X[14,12] == X[17,10])
+    @constraint(model, X[18,9] == X[12,12])
+    @constraint(model, X[16,9] == X[11,11])
+    @constraint(model, X[13,9] == X[10,10])
+    @constraint(model, X[16,13] == X[14,14])
+    @constraint(model, X[18,13] == X[15,15])
+    @constraint(model, X[18,16] == X[17,17])
+    @constraint(model, X[14,9] == X[11,10])
+    @constraint(model, X[15,9] == X[12,10])
+    @constraint(model, X[17,9] == X[12,11])
+    @constraint(model, X[14,10] == X[13,11])
+    @constraint(model, X[15,10] == X[13,12])
+    @constraint(model, X[17,13] == X[15,14])
+    @constraint(model, X[16,10] == X[14,11])
+    @constraint(model, X[17,11] == X[16,12])
+    @constraint(model, X[17,14] == X[16,15])
+    @constraint(model, X[18,10] == X[15,12])
+    @constraint(model, X[18,11] == X[17,12])
+    @constraint(model, X[18,14] == X[17,15])
+    # t⁴ (skipped because does not show up)
 
-    # Main.@infiltrate
 
     # solve
     optimize!(model)
 
     opt = objective_value(model)
+    
+    Main.@infiltrate
 
     # CONVERT TO RADIUS
     rad = sqrt(opt)
+
 
     return rad, termination_status(model)
 end
