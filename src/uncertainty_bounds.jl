@@ -799,8 +799,10 @@ function bounding_sphere_jump(center, y, r, b, K; silent=false)
     # quaternion
     @constraint(model, tr(X[2:5,2:5]) == 1)
 
-    # 90 degree rotation constraint
+    # 90 degree rotation constraint (TODO: add redundant versions)
     @constraint(model, X[1,2:5]'*center[1:4] >= 0)
+    # redundant versions
+    @constraint(model, tr(center[1:4]*center[1:4]'*X[2:5,2:5]) >= 0) # squared
 
     # redundant inequalities: backprojection
     ## make variables
@@ -854,6 +856,13 @@ function bounding_sphere_jump(center, y, r, b, K; silent=false)
     @constraint(model, tr(X[23:26,19:22]) == X[7,6]) # t1 t2
     @constraint(model, tr(X[27:30,23:26]) == X[8,7]) # t2 t3
 
+    @constraint(model, tr(X[2:5,9:12]) == X[2,1]) # q1
+    @constraint(model, X[2,10] + X[3,13] + X[4,14] + X[5,15] == X[3,1]) # q2
+    @constraint(model, X[2,11] + X[3,14] + X[4,16] + X[5,17] == X[4,1]) # q3
+    @constraint(model, X[2,12] + X[3,15] + X[4,17] + X[5,18] == X[2,1]) # q4
+
+    # TODO: add q^2 (and cross terms)
+
     # moment constraints
     # q² = q²
     @constraint(model, [i=1:4], X[ 8+i,1] == X[1+i,2])
@@ -889,6 +898,33 @@ function bounding_sphere_jump(center, y, r, b, K; silent=false)
     @constraint(model, X[4,29:30] .== X[8,16:17])
     @constraint(model, X[5,[22,26,30]] .== X[6:8,18])
     # @constraint(model, X[2:5,19:30] .== X[6:8,9:18])
+    # q³ X[2:5,9:19]
+    @constraint(model, X[3:5,9] .== X[2,10:12]) # q1^2 qx
+    @constraint(model, X[3,10] == X[2,13])
+    @constraint(model, X[4,11] == X[2,16])
+    @constraint(model, X[5,12] == X[2,18])
+    @constraint(model, X[4,13] == X[3,14]) # q2^2
+    @constraint(model, X[5,13] == X[3,15])
+    @constraint(model, X[4,14] == X[3,16])
+    @constraint(model, X[5,15] == X[3,18])
+    @constraint(model, X[5,16] == X[4,17]) # q3^2
+    @constraint(model, X[5,17] == X[4,18])
+    @constraint(model, X[4:5,10] .== X[3,11:12]) # qqq
+    @constraint(model, X[4:5,10] .== X[2,14:15])
+    @constraint(model, X[5,11] == X[4,12])
+    @constraint(model, X[5,11] == X[2,17])
+    @constraint(model, X[4,15] == X[5,14])
+    @constraint(model, X[4,15] == X[3,17])
+
+    # t³ X[6:8, 31:36]
+    @constraint(model, X[7:8,31] .== X[6,32:33])
+    @constraint(model, X[7,32] == X[6,34])
+    @constraint(model, X[8,33] == X[6,36])
+    @constraint(model, X[8,34] == X[7,35])
+    @constraint(model, X[8,35] == X[7,36])
+    @constraint(model, X[8,32] == X[7,33])
+    @constraint(model, X[8,32] == X[6,35])
+
     # q²t² (q²*t² = qt*qt)
     # 18 repeated
     @constraint(model, X[24:26,19] .== X[23,20:22])
@@ -948,7 +984,13 @@ function bounding_sphere_jump(center, y, r, b, K; silent=false)
     @constraint(model, X[18,10] == X[15,12])
     @constraint(model, X[18,11] == X[17,12])
     @constraint(model, X[18,14] == X[17,15])
-    # t⁴ (skipped because does not show up)
+
+    # t⁴
+    @constraint(model, X[32:33,32] .== X[34:35,31])
+    @constraint(model, X[33,33] == X[36,31])
+    @constraint(model, X[34,33] == X[35,32])
+    @constraint(model, X[35,35] == X[36,34])
+    @constraint(model, X[35,33] == X[36,32])
 
 
     # solve
