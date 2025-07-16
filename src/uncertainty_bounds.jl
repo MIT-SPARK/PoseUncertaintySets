@@ -380,12 +380,16 @@ function bounding_sphere(center, q_front, q_backproj, q_eqs; order=1, silent=fal
     # 90 degree rotation constraint
     if dim == 7
         push!(ineq, R'*center[1:4])
+    # else
+        # Rc = reshape(center[1:9],3,3)
+        # push!(ineq, (tr(R'*Rc) - 1) / 2)
     end
 
     # solve
     pop = [obj; ineq; eq]
     order = order
     opt, sol, data, gap = cs_tssos_first(pop, vars, order, numeq=length(eq), TS=false, CS="MD", QUIET=silent, solution=true, refine=false)
+    # Main.@infiltrate
 
     if data.SDP_status != MOI.OPTIMAL
         @warn "[bounding_sphere] Returned status $(data.SDP_status). Results may not be lower bound!"
@@ -744,14 +748,114 @@ end
 
 
 """
-Quaternion version of bounding sphere, implemented in JuMP.
+Quaternion version of S-Lemma / bounding ellipse.
 
-Mainly intended for comparison with the TSSOS version in order to derive S-Lemma.
+Implemented in a somewhat hacky way via TSSOS to achieve second order.
+1. Build bounding sphere problem automatically with TSSOS.
+2. Working in the dual space, replace the objective with a `logdet(H)` remove the `lower` variable.
+3. Multiply all (15) constant terms in the dual by terms of `H`.
+4. Add `H ⪰ 0` constraint.
+5. Solve!
 """
-function bounding_sphere_jump(center, prob; silent=false)
-    return bounding_sphere_jump(center, prob.y, prob.r, prob.b, prob.camK; silent=silent)
+function bounding_ellipse_quat(center, prob; silent=false)
+    q_front, q_backproj = uncertaintyset_linf_q(prob.y, prob.r, prob.b, prob.camK)
+    q_eqs = q_constraints()
+    return bounding_ellipse_quat(center, q_backproj, q_front, q_eqs; silent=silent)
 end
 
+function bounding_ellipse_quat(center, q_backproj, q_front, q_eqs; silent=false)
+    @polyvar q[1:4]
+    @polyvar t[1:3]
+    vars = [q; t]
+
+    # sphere objective: minimize with placeholder shape
+    # Ĥ = ones(7,7) # could replace with separate q, t term (match `H`)
+    Ĥ = diagm(ones(7))
+    W = [Ĥ -Ĥ*center; -center'*Ĥ center'*Ĥ*center]
+    obj = -[vars;1]'*W*[vars;1]
+
+    # constraints
+    # expr ≥ 0
+    ineq = Vector{TSSOS.Poly{Float64}}()
+    # expr = 0
+    eq = Vector{TSSOS.Poly{Float64}}()
+
+    # backprojection
+    for (_,q) in enumerate(q_backproj)
+        push!(ineq, -[vars;1]'*[q.H  q.c;  q.c'  q.d]*[vars;1])
+    end
+    # chirality
+    for (_,q) in enumerate(q_front)
+        push!(ineq, -[vars;1]'*[q.H  q.c;  q.c'  q.d]*[vars;1])
+    end
+    # equality (just q² = 1)
+    for (_,q) in enumerate(q_eqs)
+        push!(eq, [vars;1]'*[q.H  q.c;  q.c'  q.d]*[vars;1])
+    end
+
+    # constrain to rotations within 90°
+    push!(ineq, q'*center[1:4])
+
+    # use TSSOS to generate redundant constraints
+    pop = [obj; ineq; eq]
+    order = 2
+    # TODO: try CS="MD"
+    opt, sol, data, gap, model = cs_tssos_first(pop, vars, order, numeq=length(eq), TS=false, CS=false, QUIET=false, solve=false, solution=false, MomentOne=true)
+    
+    ## Modify model
+    # add shape variable `H` (density must match `Ĥ`)
+    # @variable(model, H[1:7,1:7] ∈ PSDCone())
+    @variable(model, h >= 0)
+    H = diagm(h*ones(7))
+    shape_mat = [ones(7)'*H*ones(7) - 1  ones(7)'*H; H*ones(7) H]
+    shapeΔ = triangle_vec(shape_mat)
+    shapeΔ = shapeΔ[shapeΔ .!= 0]
+    # update objective to logdet
+    # @variable(model, logdet_H)
+    # @objective(model, Max, logdet_H)
+    # @constraint(model, [logdet_H; 1; triangle_vec(H)] ∈ MOI.LogDetConeTriangle(7))
+    @objective(model, Max, h)
+
+    # remove the `lower` variable
+    delete(model, model[:lower])
+    unregister(model, :lower)
+    # this alone completely removes `lower`
+
+    # get constraints
+    # they are stored as vector so not easy to modify in place
+    co = constraint_object(model[:con])
+    # remove `:con` from model
+    delete(model, model[:con])
+    unregister(model, :con)
+    # modify constraints with constant terms
+    idx = 1
+    for constraint in co.func
+        # only modify constraints with constants
+        if constraint.constant == 0
+            @constraint(model, constraint == 0)
+            continue
+        end
+        # 
+        mult = constraint.constant
+        constraint.constant = 0
+        @constraint(model, constraint + mult*shapeΔ[idx] == 0)
+        idx += 1
+    end
+
+
+    ## optimize!
+    set_optimizer(model, Mosek.Optimizer)
+    Main.@infiltrate
+
+
+    return rad, data.SDP_status
+end
+
+"""
+Tried to write all the redundant constraints manually for the bounding sphere problem.
+
+Solves, but is not tight.
+"""
 function bounding_sphere_jump(center, y, r, b, K; silent=false)
     model = Model(Mosek.Optimizer)
     if silent
@@ -802,7 +906,7 @@ function bounding_sphere_jump(center, y, r, b, K; silent=false)
     # 90 degree rotation constraint (TODO: add redundant versions)
     @constraint(model, X[1,2:5]'*center[1:4] >= 0)
     # redundant versions
-    @constraint(model, tr(center[1:4]*center[1:4]'*X[2:5,2:5]) >= 0) # squared
+    # @constraint(model, tr(center[1:4]*center[1:4]'*X[2:5,2:5]) >= 0) # squared
 
     # redundant inequalities: backprojection
     ## make variables
@@ -998,7 +1102,7 @@ function bounding_sphere_jump(center, y, r, b, K; silent=false)
 
     opt = objective_value(model)
     
-    Main.@infiltrate
+    # Main.@infiltrate
 
     # CONVERT TO RADIUS
     rad = sqrt(opt)
