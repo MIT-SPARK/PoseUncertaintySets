@@ -93,23 +93,36 @@ function bounding_ellipse(center, q_front, q_backproj, q_eqs; solver=Mosek.Optim
     # @constraint(model, H0[end-2:end,end-2:end] - log_det_H0*diagm(ones(3)) >= 0, PSDCone()) # max minimum eigenvalue
 
     # alt objective
-    @objective(model, Max, tr(H0))
+    # @objective(model, Max, tr(H0))
 
     # build and constrain M
     # q0 = x'*H0*x + 2(-H0*c)'*x + c'*H0*c <= 1
-    M = -[H0  -H0*center;  (-H0*center)'  center'*H0*center-1]
+    # M = -[H0  -H0*center;  (-H0*center)'  center'*H0*center-1]
+    # for (i_bp,q) in enumerate(q_backproj)
+    #     i = i_bp
+    #     M += [λ[i]*q.H  λ[i]*q.c;  λ[i]*q.c'  λ[i]*q.d]
+    # end
+    # for (i_fc,q) in enumerate(q_front)
+    #     i = i_fc + length(q_backproj)
+    #     M += [λ[i]*q.H  λ[i]*q.c;  λ[i]*q.c'  λ[i]*q.d]
+    # end
+    # for (i,q) in enumerate(q_eqs)
+    #     M += [η[i]*q.H  η[i]*q.c;  η[i]*q.c'  η[i]*q.d]
+    # end
+    M = -[center'*H0*center-1  (-H0*center)'; -H0*center  H0]
     for (i_bp,q) in enumerate(q_backproj)
         i = i_bp
-        M += [λ[i]*q.H  λ[i]*q.c;  λ[i]*q.c'  λ[i]*q.d]
+        M += [λ[i]*q.d  λ[i]*q.c';  λ[i]*q.c  λ[i]*q.H]
     end
     for (i_fc,q) in enumerate(q_front)
         i = i_fc + length(q_backproj)
-        M += [λ[i]*q.H  λ[i]*q.c;  λ[i]*q.c'  λ[i]*q.d]
+        M += [λ[i]*q.d  λ[i]*q.c';  λ[i]*q.c  λ[i]*q.H]
     end
     for (i,q) in enumerate(q_eqs)
-        M += [η[i]*q.H  η[i]*q.c;  η[i]*q.c'  η[i]*q.d]
+        M += [η[i]*q.d  η[i]*q.c';  η[i]*q.c  η[i]*q.H]
     end
-    @constraint(model, M >= 0, PSDCone())
+    @constraint(model, triangle_vec(M) ∈ MOI.PositiveSemidefiniteConeTriangle(dim+1))
+    # @constraint(model, M >= 0, PSDCone())
 
     # Solve with JuMP
     optimize!(model)
@@ -769,9 +782,9 @@ function bounding_ellipse_quat(center, q_backproj, q_front, q_eqs; silent=false)
     vars = [q; t]
 
     # sphere objective: minimize with placeholder shape
-    # Ĥ = ones(7,7) # could replace with separate q, t term (match `H`)
-    Ĥ = diagm(ones(7))
-    W = [Ĥ -Ĥ*center; -center'*Ĥ center'*Ĥ*center]
+    Ĥ = ones(7,7) # could replace with separate q, t term (match `H`)
+    # Ĥ = diagm([1;1;1;1;1;1;1])
+    W = [Ĥ -Ĥ*ones(7); -ones(7)'*Ĥ ones(7)'*Ĥ*ones(7)]
     obj = -[vars;1]'*W*[vars;1]
 
     # constraints
@@ -801,20 +814,22 @@ function bounding_ellipse_quat(center, q_backproj, q_front, q_eqs; silent=false)
     order = 2
     # TODO: try CS="MD"
     opt, sol, data, gap, model = cs_tssos_first(pop, vars, order, numeq=length(eq), TS=false, CS=false, QUIET=false, solve=false, solution=false, MomentOne=true)
-    
+
     ## Modify model
     # add shape variable `H` (density must match `Ĥ`)
-    # @variable(model, H[1:7,1:7] ∈ PSDCone())
-    @variable(model, h >= 0)
-    H = diagm(h*ones(7))
-    shape_mat = [ones(7)'*H*ones(7) - 1  ones(7)'*H; H*ones(7) H]
+    @variable(model, H[1:7,1:7] ∈ PSDCone())
+    # @variable(model, Hp[1:3,1:3] ∈ PSDCone())
+    # H = [zeros(4,7); zeros(3,4) Hp]
+    # @variable(model, h[1:7] .>= 0)
+    # H = diagm(h)
+    shape_mat = [center'*H*center - 1  center'*H; H*center H] # all_variables(model)[1]
     shapeΔ = triangle_vec(shape_mat)
     shapeΔ = shapeΔ[shapeΔ .!= 0]
     # update objective to logdet
-    # @variable(model, logdet_H)
-    # @objective(model, Max, logdet_H)
-    # @constraint(model, [logdet_H; 1; triangle_vec(H)] ∈ MOI.LogDetConeTriangle(7))
-    @objective(model, Max, h)
+    @variable(model, logdet_H)
+    @objective(model, Max, logdet_H)
+    @constraint(model, [logdet_H; 1; triangle_vec(H)] ∈ MOI.LogDetConeTriangle(7))
+    # @objective(model, Max, tr(H))
 
     # remove the `lower` variable
     delete(model, model[:lower])
@@ -828,16 +843,24 @@ function bounding_ellipse_quat(center, q_backproj, q_front, q_eqs; silent=false)
     delete(model, model[:con])
     unregister(model, :con)
     # modify constraints with constant terms
-    idx = 1
+    # get PSD variables (up to triangle number of 8x8)
+    psdvars = all_variables(model)[1:36] # TODO: fix
+
     for constraint in co.func
         # only modify constraints with constants
         if constraint.constant == 0
             @constraint(model, constraint == 0)
             continue
         end
-        # 
-        mult = constraint.constant
+        # get variable
+        var = first(keys(constraint.terms))
+        # multipler should match multipler on var
+        mult = constraint.terms[var]
+        idx = findall(x->x==var, psdvars)[1]
+        # TODO: this system is inflexible!
+        # remove constant term
         constraint.constant = 0
+        # add constraint!
         @constraint(model, constraint + mult*shapeΔ[idx] == 0)
         idx += 1
     end
@@ -845,10 +868,14 @@ function bounding_ellipse_quat(center, q_backproj, q_front, q_eqs; silent=false)
 
     ## optimize!
     set_optimizer(model, Mosek.Optimizer)
-    Main.@infiltrate
+    optimize!(model)
 
+    if !is_solved_and_feasible(model)
+        @warn "[bounding_ellipse_quat] Returned status $(termination_status(model)). Results may not be lower bound!"
+        gap = -1
+    end
 
-    return rad, data.SDP_status
+    return value.(H), termination_status(model)
 end
 
 """
