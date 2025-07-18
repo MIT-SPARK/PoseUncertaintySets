@@ -771,21 +771,23 @@ Implemented in a somewhat hacky way via TSSOS to achieve second order.
 4. Add `H ⪰ 0` constraint.
 5. Solve!
 """
-function bounding_ellipse_quat(center, prob; silent=false)
+function bounding_ellipse_quat(center, prob; order=2, silent=false)
     q_front, q_backproj = uncertaintyset_linf_q(prob.y, prob.r, prob.b, prob.camK)
     q_eqs = q_constraints()
-    return bounding_ellipse_quat(center, q_backproj, q_front, q_eqs; silent=silent)
+    return bounding_ellipse_quat(center, q_backproj, q_front, q_eqs; order=order, silent=silent)
 end
 
-function bounding_ellipse_quat(center, q_backproj, q_front, q_eqs; silent=false)
+function bounding_ellipse_quat(center, q_backproj, q_front, q_eqs; order=2, silent=false)
     @polyvar q[1:4]
     @polyvar t[1:3]
     vars = [q; t]
 
     # sphere objective: minimize with placeholder shape & center
-    Ĥ = ones(7,7) # could replace with separate q, t term (match `H`)
+    # Ĥ = ones(7,7) # could replace with separate q, t term (match `H`)
     # Ĥ = diagm([1;1;1;1;1;1;1])
-    W = [ones(7)'*Ĥ*ones(7)  -ones(7)'*Ĥ;  -Ĥ*ones(7)  Ĥ]
+    # W = [ones(7)'*Ĥ*ones(7)  -ones(7)'*Ĥ;  -Ĥ*ones(7)  Ĥ]
+    W = [1 -ones(7)'; -ones(7) ones(7,7)]
+    # Non-1 terms corrected for later
     obj = -[1;vars]'*W*[1;vars]
 
     # constraints
@@ -812,9 +814,13 @@ function bounding_ellipse_quat(center, q_backproj, q_front, q_eqs; silent=false)
 
     # use TSSOS to generate redundant constraints
     pop = [obj; ineq; eq]
-    order = 2
-    # TODO: try CS="MD"
+    order = order
+    # CS="MD" doesn't make a difference runtime wise
     opt, sol, data, gap, model = cs_tssos_first(pop, vars, order, numeq=length(eq), TS=false, CS=false, QUIET=false, solve=false, solution=false, MomentOne=true)
+
+    if silent
+        set_silent(model)
+    end
 
     ## Modify model
     # add shape variable `H` (density must match `Ĥ`)
@@ -852,28 +858,17 @@ function bounding_ellipse_quat(center, q_backproj, q_front, q_eqs; silent=false)
             continue
         end
         var = first(keys(constraint.terms))
-        # if var == psdvars[1]
-        #     mult = -constraint.constant
-        #     # remove constant term
-        #     constraint.constant = 0
-        #     # edit expr
-        #     expr = constraint + mult*shapeΔ[var] / 49 # use 7 for diagonal version
-        #     # TODO: what should I divide by otherwise?
-        #     @constraint(model, expr == 0)
-        #     continue
-        # end
-        # mult = constraint.terms[var]
         mult = -constraint.constant
         # remove constant term
         constraint.constant = 0
-        # add constraint and correct for werid mult
+        # add constraint and correct for mult issues (division may not be necessary anymore)
         @constraint(model, constraint + mult*shapeΔ[var] / tvW[var] == 0)
     end
 
     ## optimize!
     set_optimizer(model, Mosek.Optimizer)
     optimize!(model)
-    # Main.@infiltrate
+    Main.@infiltrate
 
     if !is_solved_and_feasible(model)
         @warn "[bounding_ellipse_quat] Returned status $(termination_status(model)). Results may not be lower bound!"

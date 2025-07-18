@@ -29,7 +29,7 @@ include("uncertainty_set.jl")
 include("uncertainty_bounds.jl")
 export bounding_ellipse, angular_bounds_rpy, purse_bounds
 export bounding_sphere, check_feasibility, refine_bbox
-export premarg_bounds
+export premarg_bounds, bounding_ellipse_quat
 
 include("datasets/poses.jl")
 export dataset_pose_est, calc_pose_errors, calc_projection_errors
