@@ -43,8 +43,8 @@ function bounding_ellipse(center, y, r, b, camK; p=2, solver=Mosek.Optimizer, si
         q_eqs = SO3_constraints()
 
         ## Quaternion Version
-        q_front, q_backproj = uncertaintyset_linf_q(y, r, b, camK)
-        q_eqs = q_constraints()
+        # q_front, q_backproj = uncertaintyset_linf_q(y, r, b, camK)
+        # q_eqs = q_constraints()
     end
 
     return bounding_ellipse(center, q_front, q_backproj, q_eqs; solver=solver, silent=silent)
@@ -69,9 +69,9 @@ function bounding_ellipse(center, q_front, q_backproj, q_eqs; solver=Mosek.Optim
 
     # full 12 x 12
     dim = size(q_front[1].H,1)
-    # @variable(model, H0[1:dim,1:dim] ∈ PSDCone())
-    @variable(model, h0 ≥ 0)
-    H0 = diagm(ones(dim))*h0
+    @variable(model, H0[1:dim,1:dim] ∈ PSDCone())
+    # @variable(model, h0 ≥ 0)
+    # H0 = diagm(ones(dim))*h0
     # H0 = [zeros(9,12); zeros(3,9) diagm(ones(3))*h0]
 
     # rotation and position independent
@@ -88,13 +88,13 @@ function bounding_ellipse(center, q_front, q_backproj, q_eqs; solver=Mosek.Optim
 
     # objective: max logdet(H0)
     # use auxillary variable
-    # @objective(model, Max, log_det_H0)
-    # @constraint(model, [log_det_H0; 1; triangle_vec(H0)] in MOI.LogDetConeTriangle(dim))
+    @objective(model, Max, log_det_H0)
+    @constraint(model, [log_det_H0; 1; triangle_vec(H0)] in MOI.LogDetConeTriangle(dim))
     # @constraint(model, [log_det_H0; triangle_vec(H0)] in MOI.RootDetConeTriangle(dim)) # alt logdet cone
     # @constraint(model, H0[end-2:end,end-2:end] - log_det_H0*diagm(ones(3)) >= 0, PSDCone()) # max minimum eigenvalue
 
     # alt objective
-    @objective(model, Max, tr(H0))
+    # @objective(model, Max, tr(H0))
 
     # build and constrain M
     # q0 = x'*H0*x + 2(-H0*c)'*x + c'*H0*c <= 1
@@ -124,8 +124,6 @@ function bounding_ellipse(center, q_front, q_backproj, q_eqs; solver=Mosek.Optim
     end
     @constraint(model, triangle_vec(M) ∈ MOI.PositiveSemidefiniteConeTriangle(dim+1))
     # @constraint(model, M >= 0, PSDCone())
-
-    Main.@infiltrate
 
     # Solve with JuMP
     optimize!(model)
@@ -785,10 +783,10 @@ function bounding_ellipse_quat(center, q_backproj, q_front, q_eqs; silent=false)
     vars = [q; t]
 
     # sphere objective: minimize with placeholder shape & center
-    # Ĥ = ones(7,7) # could replace with separate q, t term (match `H`)
-    Ĥ = diagm([1;1;1;1;1;1;1])
-    W = [Ĥ -Ĥ*ones(7); -ones(7)'*Ĥ  ones(7)'*Ĥ*ones(7)]
-    obj = -[vars;1]'*W*[vars;1]
+    Ĥ = ones(7,7) # could replace with separate q, t term (match `H`)
+    # Ĥ = diagm([1;1;1;1;1;1;1])
+    W = [ones(7)'*Ĥ*ones(7)  -ones(7)'*Ĥ;  -Ĥ*ones(7)  Ĥ]
+    obj = -[1;vars]'*W*[1;vars]
 
     # constraints
     # expr ≥ 0
@@ -820,17 +818,17 @@ function bounding_ellipse_quat(center, q_backproj, q_front, q_eqs; silent=false)
 
     ## Modify model
     # add shape variable `H` (density must match `Ĥ`)
-    # @variable(model, H[1:7,1:7] ∈ PSDCone())
+    @variable(model, H[1:7,1:7] ∈ PSDCone())
     # @variable(model, Hp[1:3,1:3] ∈ PSDCone())
     # H = [zeros(4,7); zeros(3,4) Hp]
-    @variable(model, h >= 0); H = diagm(h*ones(7))
+    # @variable(model, h >= 0); H = diagm(h*ones(7))
     shape_mat = -[(center'*H*center - 1)  center'*H; H*center H] # with -1
     shapeΔ = triangle_vec(shape_mat)
     # update objective to logdet
-    # @variable(model, logdet_H)
-    # @objective(model, Max, logdet_H)
-    # @constraint(model, [logdet_H; 1; triangle_vec(H)] ∈ MOI.LogDetConeTriangle(7))
-    @objective(model, Max, tr(H)) # * (center'*center))
+    @variable(model, logdet_H)
+    @objective(model, Max, logdet_H)
+    @constraint(model, [logdet_H; 1; triangle_vec(H)] ∈ MOI.LogDetConeTriangle(7))
+    # @objective(model, Max, tr(H))
 
     # remove the `lower` variable
     delete(model, model[:lower])
@@ -847,33 +845,35 @@ function bounding_ellipse_quat(center, q_backproj, q_front, q_eqs; silent=false)
     # get PSD variables
     psdvars = all_variables(model)[1:length(shapeΔ)]
     shapeΔ = Dict(zip(psdvars, shapeΔ))
+    tvW = Dict(zip(psdvars, abs.(triangle_vec(W))))
     for constraint in co.func
         if constraint.constant == 0
             @constraint(model, constraint == 0)
             continue
         end
         var = first(keys(constraint.terms))
-        if var == psdvars[1]
-            mult = -constraint.constant
-            # remove constant term
-            constraint.constant = 0
-            # edit expr
-            expr = constraint + mult*shapeΔ[var] / 7
-            # expr.constant = expr.constant / 7 
-            @constraint(model, expr == 0)
-            continue
-        end
+        # if var == psdvars[1]
+        #     mult = -constraint.constant
+        #     # remove constant term
+        #     constraint.constant = 0
+        #     # edit expr
+        #     expr = constraint + mult*shapeΔ[var] / 49 # use 7 for diagonal version
+        #     # TODO: what should I divide by otherwise?
+        #     @constraint(model, expr == 0)
+        #     continue
+        # end
         # mult = constraint.terms[var]
         mult = -constraint.constant
         # remove constant term
         constraint.constant = 0
-        @constraint(model, constraint + mult*shapeΔ[var] == 0)
+        # add constraint and correct for werid mult
+        @constraint(model, constraint + mult*shapeΔ[var] / tvW[var] == 0)
     end
 
     ## optimize!
     set_optimizer(model, Mosek.Optimizer)
     optimize!(model)
-    Main.@infiltrate
+    # Main.@infiltrate
 
     if !is_solved_and_feasible(model)
         @warn "[bounding_ellipse_quat] Returned status $(termination_status(model)). Results may not be lower bound!"

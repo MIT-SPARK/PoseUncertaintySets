@@ -50,7 +50,7 @@ function plot_ellipse(center, H_t; p=2)
     surf = ellipse_to_surf(H_t, center[end-2:end], 100)
     Plots.plot([center[end-2]],[center[end-1]],[center[end]], seriestype=:scatter, label="center")
     Plots.scatter!([0],[0],[0],label="camera")
-    p2 = Plots.scatter3d!(surf[1,:], surf[2,:], surf[3,:], label="s-lemma")
+    p2 = Plots.scatter3d!(surf[1,:], surf[2,:], surf[3,:], label="s-lemma") #, msw=0.)
 end
 
 P = [zeros(3,9) diagm(ones(3))]
