@@ -45,7 +45,7 @@ bounds2, gaps2, statusx2 = refine_bbox(center2, H2, prob2; mode=3, order=1, sile
 # Hi = diagm(ones(7))/radi^2
 # boundsi3, gapsi, statusxi = refine_bbox(centeri, Hi, probi; mode=3, order=2, silent=true) # 4 s, worse than 1/2
 # boundsi2, gapsi, statusxi = refine_bbox(centeri, Hi, probi; mode=2, order=2, silent=true) # 5.5 s, same as 1
-boundsi1, gapsi, statusxi = refine_bbox(centeri, Hi, probi; mode=1, order=2, silent=true) # 0.5 s, same as 2
+boundsi1, gapsi, statusxi = refine_bbox(centeri, Hqi, probi; mode=1, order=2, silent=true) # 0.5 s, same as 2
 
 # PLOT
 function plot_ellipse(center, H_t; p=2)
@@ -55,8 +55,9 @@ function plot_ellipse(center, H_t; p=2)
     p2 = Plots.scatter3d!(surf[1,:], surf[2,:], surf[3,:], label="s-lemma") #, msw=0.)
 end
 
-P = [zeros(3,9) diagm(ones(3))]
-H_t = inv(P*pinv(Hi)*P')
+# P = [zeros(3,9) diagm(ones(3))]
+P = [zeros(3,4) diagm(ones(3))]
+H_t = inv(P*pinv(Hqi)*P')
 p2 = plot_ellipse(centeri, H_t; p=Inf)
 
 # plot_bbox!(p2, centeri, H_t, boundsi3; label="bbox3")

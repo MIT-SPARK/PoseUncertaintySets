@@ -496,17 +496,17 @@ function refine_bbox(center, H, y, r, b, camK; p=2, mode=3, order=1, H_t=nothing
         q_eqs = SO3_constraints()
     else
         ## Rotation Version
-        q_front, q_backproj = uncertaintyset_linf_R(y, r, b, camK)
-        q_eqs = SO3_constraints()
+        # q_front, q_backproj = uncertaintyset_linf_R(y, r, b, camK)
+        # q_eqs = SO3_constraints()
         ## Quaternion Version
-        # q_front, q_backproj = uncertaintyset_linf_q(y, r, b, camK)
-        # q_eqs = q_constraints()
+        q_front, q_backproj = uncertaintyset_linf_q(y, r, b, camK)
+        q_eqs = q_constraints()
     end
 
     if isnothing(H_t)
         # marginalize via projection
-        # P = [zeros(3,p == 2 ? 9 : 4) diagm(ones(3))]
-        P = [zeros(3,9) diagm(ones(3))]
+        P = [zeros(3,p == 2 ? 9 : 4) diagm(ones(3))]
+        # P = [zeros(3,9) diagm(ones(3))]
         H_t = inv(P*pinv(H)*P')
     end
     return refine_bbox(center, H, q_front, q_backproj, q_eqs; p=p, mode=mode, order=order, H_t=H_t, silent=silent)
@@ -520,8 +520,8 @@ function refine_bbox(center, H, q_front, q_backproj, q_eqs; p=2, mode=3, order=1
     if p == 2
         @polyvar R[1:3,1:3]
     else
-        # @polyvar R[1:4] # quaternion
-        @polyvar R[1:3,1:3]
+        @polyvar R[1:4] # quaternion
+        # @polyvar R[1:3,1:3]
     end
     @polyvar t[1:3]
     vars = [vec(R); t]
