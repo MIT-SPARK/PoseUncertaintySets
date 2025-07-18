@@ -403,7 +403,6 @@ function bounding_sphere(center, q_front, q_backproj, q_eqs; order=1, silent=fal
     pop = [obj; ineq; eq]
     order = order
     opt, sol, data, gap = cs_tssos_first(pop, vars, order, numeq=length(eq), TS=false, CS="MD", QUIET=silent, solution=true, refine=false)
-    Main.@infiltrate
 
     if data.SDP_status != MOI.OPTIMAL
         @warn "[bounding_sphere] Returned status $(data.SDP_status). Results may not be lower bound!"
@@ -868,7 +867,6 @@ function bounding_ellipse_quat(center, q_backproj, q_front, q_eqs; order=2, sile
     ## optimize!
     set_optimizer(model, Mosek.Optimizer)
     optimize!(model)
-    Main.@infiltrate
 
     if !is_solved_and_feasible(model)
         @warn "[bounding_ellipse_quat] Returned status $(termination_status(model)). Results may not be lower bound!"
