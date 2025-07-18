@@ -823,7 +823,6 @@ function bounding_ellipse_quat(center, q_backproj, q_front, q_eqs; silent=false)
     @variable(model, h >= 0); H = diagm(h*ones(7))
     shape_mat = [center'*H*center - 1  center'*H; H*center H]
     shapeΔ = triangle_vec(shape_mat)
-    # shapeΔ = shapeΔ[shapeΔ .!= 0]
     # update objective to logdet
     # @variable(model, logdet_H)
     # @objective(model, Max, logdet_H)
@@ -845,7 +844,6 @@ function bounding_ellipse_quat(center, q_backproj, q_front, q_eqs; silent=false)
     # get PSD variables
     psdvars = all_variables(model)[1:length(shapeΔ)]
     shapeΔ = Dict(zip(psdvars, shapeΔ))
-    # psdvars = []    
     for constraint in co.func
         if constraint.constant == 0
             @constraint(model, constraint == 0)
@@ -860,24 +858,6 @@ function bounding_ellipse_quat(center, q_backproj, q_front, q_eqs; silent=false)
         constraint.constant = 0
         @constraint(model, constraint + mult*shapeΔ[var] == 0)
     end
-    # sort!(psdvars, by=x->x.index.value)
-
-    # for constraint in co.func
-    #     # only modify constraints with constants
-    #     if constraint.constant == 0
-    #         @constraint(model, constraint == 0)
-    #         continue
-    #     end
-    #     # get variable
-    #     var = first(keys(constraint.terms))
-    #     # multipler should match multipler on var
-    #     mult = constraint.terms[var]
-    #     idx = findall(x->x==var, psdvars)[1]
-    #     # remove constant term
-    #     constraint.constant = 0
-    #     # add constraint!
-    #     @constraint(model, constraint + mult*shapeΔ[idx] == 0)
-    # end
 
     ## optimize!
     set_optimizer(model, Mosek.Optimizer)
