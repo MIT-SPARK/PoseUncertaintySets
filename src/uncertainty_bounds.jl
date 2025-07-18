@@ -402,7 +402,7 @@ function bounding_sphere(center, q_front, q_backproj, q_eqs; order=1, silent=fal
     pop = [obj; ineq; eq]
     order = order
     opt, sol, data, gap = cs_tssos_first(pop, vars, order, numeq=length(eq), TS=false, CS="MD", QUIET=silent, solution=true, refine=false)
-    # Main.@infiltrate
+    Main.@infiltrate
 
     if data.SDP_status != MOI.OPTIMAL
         @warn "[bounding_sphere] Returned status $(data.SDP_status). Results may not be lower bound!"
@@ -781,10 +781,10 @@ function bounding_ellipse_quat(center, q_backproj, q_front, q_eqs; silent=false)
     @polyvar t[1:3]
     vars = [q; t]
 
-    # sphere objective: minimize with placeholder shape
-    Ĥ = ones(7,7) # could replace with separate q, t term (match `H`)
-    # Ĥ = diagm([1;1;1;1;1;1;1])
-    W = [Ĥ -Ĥ*ones(7); -ones(7)'*Ĥ ones(7)'*Ĥ*ones(7)]
+    # sphere objective: minimize with placeholder shape & center
+    # Ĥ = ones(7,7) # could replace with separate q, t term (match `H`)
+    Ĥ = diagm([1;1;1;1;1;1;1]) / 7 # TODO: more principled way to do this
+    W = [Ĥ -Ĥ*ones(7); -ones(7)'*Ĥ  ones(7)'*Ĥ*ones(7)]
     obj = -[vars;1]'*W*[vars;1]
 
     # constraints
@@ -820,16 +820,15 @@ function bounding_ellipse_quat(center, q_backproj, q_front, q_eqs; silent=false)
     @variable(model, H[1:7,1:7] ∈ PSDCone())
     # @variable(model, Hp[1:3,1:3] ∈ PSDCone())
     # H = [zeros(4,7); zeros(3,4) Hp]
-    # @variable(model, h[1:7] .>= 0)
-    # H = diagm(h)
-    shape_mat = [center'*H*center - 1  center'*H; H*center H] # all_variables(model)[1]
+    @variable(model, h >= 0); H = diagm(h*ones(7))
+    shape_mat = [center'*H*center - 1  center'*H; H*center H]
     shapeΔ = triangle_vec(shape_mat)
-    shapeΔ = shapeΔ[shapeΔ .!= 0]
+    # shapeΔ = shapeΔ[shapeΔ .!= 0]
     # update objective to logdet
-    @variable(model, logdet_H)
-    @objective(model, Max, logdet_H)
-    @constraint(model, [logdet_H; 1; triangle_vec(H)] ∈ MOI.LogDetConeTriangle(7))
-    # @objective(model, Max, tr(H))
+    # @variable(model, logdet_H)
+    # @objective(model, Max, logdet_H)
+    # @constraint(model, [logdet_H; 1; triangle_vec(H)] ∈ MOI.LogDetConeTriangle(7))
+    @objective(model, Max, tr(H))
 
     # remove the `lower` variable
     delete(model, model[:lower])
@@ -843,32 +842,47 @@ function bounding_ellipse_quat(center, q_backproj, q_front, q_eqs; silent=false)
     delete(model, model[:con])
     unregister(model, :con)
     # modify constraints with constant terms
-    # get PSD variables (up to triangle number of 8x8)
-    psdvars = all_variables(model)[1:36] # TODO: fix
-
+    # get PSD variables
+    psdvars = all_variables(model)[1:length(shapeΔ)]
+    shapeΔ = Dict(zip(psdvars, shapeΔ))
+    # psdvars = []    
     for constraint in co.func
-        # only modify constraints with constants
         if constraint.constant == 0
             @constraint(model, constraint == 0)
             continue
         end
-        # get variable
         var = first(keys(constraint.terms))
-        # multipler should match multipler on var
+        # push!(psdvars,var)
+        # TODO: is this right?
         mult = constraint.terms[var]
-        idx = findall(x->x==var, psdvars)[1]
-        # TODO: this system is inflexible!
+        # mult = constraint.constant
         # remove constant term
         constraint.constant = 0
-        # add constraint!
-        @constraint(model, constraint + mult*shapeΔ[idx] == 0)
-        idx += 1
+        @constraint(model, constraint + mult*shapeΔ[var] == 0)
     end
+    # sort!(psdvars, by=x->x.index.value)
 
+    # for constraint in co.func
+    #     # only modify constraints with constants
+    #     if constraint.constant == 0
+    #         @constraint(model, constraint == 0)
+    #         continue
+    #     end
+    #     # get variable
+    #     var = first(keys(constraint.terms))
+    #     # multipler should match multipler on var
+    #     mult = constraint.terms[var]
+    #     idx = findall(x->x==var, psdvars)[1]
+    #     # remove constant term
+    #     constraint.constant = 0
+    #     # add constraint!
+    #     @constraint(model, constraint + mult*shapeΔ[idx] == 0)
+    # end
 
     ## optimize!
     set_optimizer(model, Mosek.Optimizer)
     optimize!(model)
+    Main.@infiltrate
 
     if !is_solved_and_feasible(model)
         @warn "[bounding_ellipse_quat] Returned status $(termination_status(model)). Results may not be lower bound!"
