@@ -234,9 +234,9 @@ function uncertaintyset_linf_q(y, r, b, K)
     for i = 1:N
         # front of camera
         H = zeros(7,7)
-        H[1:4, 1:4] = -(-Ω1(K'*e3)*Ω2(b[:,i]))
+        H[1:4, 1:4] = -(-Ω1(e3)*Ω2(b[:,i]))
         H += H'
-        c = -[zeros(4); K'*e3]
+        c = -[zeros(4); e3]
         s = 0.
         push!(q_front, Quadratic(H, c, s))
         
@@ -246,17 +246,17 @@ function uncertaintyset_linf_q(y, r, b, K)
             ej = zeros(3); ej[j] = 1
 
             H = zeros(7,7)
-            H[1:4, 1:4] = (-Ω1((iy3*K)'*ej)*Ω2(b[:,i])) - r[i]*(-Ω1(K'*e3)*Ω2(b[:,i]))
+            H[1:4, 1:4] = (-Ω1((iy3*K)'*ej)*Ω2(b[:,i])) - r[i]*(-Ω1(e3)*Ω2(b[:,i]))
             H += H'
-            c = [zeros(4); (ej'*iy3*K)' - r[i]*(e3'*K)']
+            c = [zeros(4); (ej'*iy3*K)' - r[i]*e3]
             s = 0.
             push!(q_backproj, Quadratic(H, c, s))
 
             # negative term
             H = zeros(7,7)
-            H[1:4, 1:4] = -(-Ω1((iy3*K)'*ej)*Ω2(b[:,i])) - r[i]*(-Ω1(K'*e3)*Ω2(b[:,i]))
+            H[1:4, 1:4] = -(-Ω1((iy3*K)'*ej)*Ω2(b[:,i])) - r[i]*(-Ω1(e3)*Ω2(b[:,i]))
             H += H'
-            c = [zeros(4); -(ej'*iy3*K)' - r[i]*(e3'*K)']
+            c = [zeros(4); -(ej'*iy3*K)' - r[i]*e3]
             s = 0.
             push!(q_backproj, Quadratic(H, c, s))
         end

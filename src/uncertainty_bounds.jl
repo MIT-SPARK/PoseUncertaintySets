@@ -668,16 +668,21 @@ RPY angular bounds.
 Current status: solves with SLOW_PROGRESS for full PURSE constraints.
 Solves to optimality with only ellipse constraints, but bounds are all 90 deg
 
-TODO: try with a quaternion ellipse? Try with bounding sphere?
+TODO: try with a quaternion ellipse--need to do quat products
 """
 function angular_bounds_rpy(center, H, prob; silent=false, order=3)
-    Rc = reshape(center[1:9],3,3)
-    # can marginalize out positions via projection
-    P = [diagm(ones(9)) zeros(9,3)]
+    if prob.p == 2
+        Rc = reshape(center[1:9],3,3)
+        P = [diagm(ones(9)) zeros(9,3)]
+    else
+        Rc = quat2rotm(center[1:4])
+        P = [diagm(ones(4)) zeros(4,3)]
+    end
+    # marginalize out positions via projection
     H_r = inv(P*inv(H)*P')
 
     # TEMP: get constraints
-    q_front, q_backproj = uncertaintyset_l2(prob.y, prob.r, prob.b, prob.camK)
+    # q_front, q_backproj = uncertaintyset_l2(prob.y, prob.r, prob.b, prob.camK)
 
     @polyvar c[1:3]
     @polyvar s[1:3]
@@ -758,6 +763,107 @@ function angular_bounds_rpy(center, H, prob; silent=false, order=3)
     return Δθs, status_sdp, gaps
 end
 
+
+"""
+RPY angular bounds for quaternion.
+
+Current status: solves with SLOW_PROGRESS for full PURSE constraints.
+Solves to optimality with only ellipse constraints, but bounds are all 90 deg.
+
+This is stupidly slow.
+"""
+function angular_bounds_rpy_quat(center, H, prob; silent=false, order=6)
+    qc = center[1:4]
+    P = [diagm(ones(4)) zeros(4,3)]
+    # marginalize out positions via projection
+    H_r = inv(P*inv(H)*P')
+
+    @polyvar c[1:3]
+    @polyvar s[1:3]
+    vars = [c; s]
+
+    qx = [c[1]; s[1]; 0; 0]
+    qy = [c[2]; 0; s[2]; 0]
+    qz = [c[3]; 0; 0; s[3]]
+
+    # solve for each axis
+    Δθs = Vector{Any}(undef, 3)
+    status_sdp = Vector{MOI.TerminationStatusCode}(undef, 3)
+    gaps = -ones(3)
+    for i = 1:3
+        function qmult(r, s)
+            q = zeros(TSSOS.Poly{Float64}, 4)
+            q[1] = r[1]*s[1] - r[2:4]'*s[2:4]
+            q[2] = r[1]*s[2] + r[2]*s[1] - r[3]*s[4] + r[4]*s[3]
+            q[3] = r[1]*s[3] + r[2]*s[4] + r[3]*s[1] - r[4]*s[2]
+            q[4] = r[1]*s[4] - r[2]*s[3] + r[3]*s[2] + r[4]*s[1]
+            return q
+        end
+        function qrot(r, s)
+            # r ⊗ s ⊗ r⁻¹
+            q = qmult(s, [r[1]; -r[2:4]])
+            q = qmult(r, q)
+        end
+        q = qrot(qx, qrot(qy, qrot(qz, qc)))
+
+        # objective: minimize cos(θ)
+        obj = c[i]
+        
+        # constraints
+        # expr ≥ 0
+        ineq = Vector{TSSOS.Poly{Float64}}()
+        push!(ineq, 1 - (q - qc)'*H_r*(q - qc))
+        
+        # c > 0 forces to be within π/2 of center--this is an assumption
+        # but if it does not hold these bounds are the wrong approach anyways
+        append!(ineq, c)
+
+        # for i = 1:3
+        #     push!(ineq, s[i]^2 + c[i]^2 - 1)
+        # end
+
+        # extra constraints
+        # for (i,q) in enumerate(q_backproj)
+        #     push!(ineq, -[vec(R);t;1]'*[q.H  q.c;  q.c'  q.d]*[vec(R);t;1])
+        # end
+        # for (i,q) in enumerate(q_front)
+        #     push!(ineq, -[vec(R);t;1]'*[q.H  q.c;  q.c'  q.d]*[vec(R);t;1])
+        # end
+
+        eq = Vector{TSSOS.Poly{Float64}}()
+        for i = 1:3
+            push!(eq, s[i]^2 + c[i]^2 - 1)
+        end
+
+        # Solve with TSSOS
+        pop = [obj; ineq; eq]
+        opt, sol, data, gap = cs_tssos_first(pop, vars, order, numeq=length(eq), CS="MD", TS="block", QUIET=silent, solution=true, refine=false)
+
+        if !silent
+            println("SDP status: $(data.SDP_status)")
+            # println("Loc status: $(refine_status)")
+        end
+
+        # R_est = project2SO3((vars => sol) .|> R)
+        # Rc = project2SO3(Rc)
+
+        c_val = (vars=>sol) .|> c
+        s_val = (vars=>sol) .|> s
+        eq_val = (vars=>sol) .|> eq
+
+        (sum(abs.(eq_val) .> 1e-3) == 0) || @warn "At least one equality constraint violated"
+
+        # save
+        # Δθs[i] = roterror(R_est, Rc)
+        Δθs[i] = atan(s_val[i], c_val[i])*180/π
+        status_sdp[i] = data.SDP_status
+        gaps[i] = gap
+
+        # Main.@infiltrate
+    end
+
+    return Δθs, status_sdp, gaps
+end
 
 
 """
