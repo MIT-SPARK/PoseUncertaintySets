@@ -27,9 +27,9 @@ export gaussianpose, ransagpose, gaussianpose_sdplr, maxmarginpose, conformalpos
 
 include("uncertainty_set.jl")
 include("uncertainty_bounds.jl")
-export bounding_ellipse, angular_bounds_rpy, purse_bounds
-export bounding_sphere, check_feasibility, refine_bbox
-export premarg_bounds, bounding_ellipse_quat
+export bounding_ellipse, bounding_sphere, bounding_ellipse_quat
+include("explicit_bounds.jl")
+export purse_bounds, angular_bounds_rpy, refine_bbox
 
 include("datasets/poses.jl")
 export dataset_pose_est, calc_pose_errors, calc_projection_errors
