@@ -20,10 +20,10 @@ prob2 = get_problem(keypoint_data2, object_id, frame)
 probi = get_problem(keypoint_datai, object_id, frame)
 
 # pose estimate
-R2, t2, gap2, status2 = gaussianpose(prob2; silent=true, order=2)
-Ri, ti, gapi, statusi = gaussianpose(probi; silent=true, order=2)
-# R2, t2, gap2, status2 = maxmarginpose(prob2; silent=true)
-# Ri, ti, gapi, statusi = maxmarginpose(probi; silent=true)
+# R2, t2, gap2, status2 = gaussianpose(prob2; silent=true, order=2)
+# Ri, ti, gapi, statusi = gaussianpose(probi; silent=true, order=2)
+R2, t2, gap2, status2 = maxmarginpose(prob2; silent=true)
+Ri, ti, gapi, statusi = maxmarginpose(probi; silent=true)
 
 # bounding SPHERE
 # center2 = [vec(R2); t2]
@@ -45,7 +45,7 @@ bounds2, gaps2, statusx2 = refine_bbox(center2, H2, prob2; mode=3, order=1, sile
 # Hi = diagm(ones(7))/radi^2
 # boundsi3, gapsi, statusxi = refine_bbox(centeri, Hi, probi; mode=3, order=2, silent=true) # 4 s, worse than 1/2
 # boundsi2, gapsi, statusxi = refine_bbox(centeri, Hi, probi; mode=2, order=2, silent=true) # 5.5 s, same as 1
-boundsi1, gapsi, statusxi = refine_bbox(centeri, Hqi, probi; mode=1, order=2, silent=true) # 0.5 s, same as 2
+boundsi1, gapsi, statusxi = refine_bbox(centeri, Hqi, probi; R=false, mode=1, order=2, silent=true) # 0.5 s, same as 2
 
 # PLOT
 function plot_ellipse(center, H_t; p=2)
@@ -62,7 +62,7 @@ p2 = plot_ellipse(centeri, H_t; p=Inf)
 
 # plot_bbox!(p2, centeri, H_t, boundsi3; label="bbox3")
 # plot_bbox!(p2, centeri, H_t, boundsi2; label="bbox2")
-plot_bbox!(p2, centeri, H_t, boundsi1; label="bbox1")
+plot_bbox!(p2, centeri, H_t, boundsi1; label="bbox")
 
 
 # linf vs. l2: Inf is generally tighter / faster.

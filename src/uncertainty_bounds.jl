@@ -207,6 +207,110 @@ function angular_bounds_perturbation(center, H; silent=false, order=2)
 end
 
 
+"""
+    angular_bounds_quat(center, H; silent=true)
+
+Compute a single angular bound with quaternions.
+
+We marginalize out positions via projection, 
+and assume `cos(θ) > 0`.
+"""
+function angular_bounds_quat(center, H; silent=false, order=1)
+    qc = center[1:4]
+    # marginalize out positions via projection
+    P = [diagm(ones(4)) zeros(4,3)]
+    H_r = inv(P*inv(H)*P')
+
+    @polyvar q[1:4]
+
+    obj = -(q - qc)'*(q - qc)
+
+    # constraints
+    # expr ≥ 0
+    ineq = Vector{TSSOS.Poly{Float64}}()
+    # expr = 0
+    eq = Vector{TSSOS.Poly{Float64}}()
+
+    # bounding ellipse
+    push!(ineq, 1 - (q - qc)'*H_r*(q - qc))
+    push!(ineq, q'*qc) # enforces within 90 deg
+
+    # SO(3) constraints
+    eq = [q'*q - 1]
+
+    # solve
+    pop = [obj; ineq; eq]
+    order = order
+    opt, sol, data, gap = cs_tssos_first(pop, q, order, numeq=length(eq), TS="MD", QUIET=silent, solution=true, refine=true)
+
+    ## Extract solution
+    Δθ = roterror(quat2rotm(qc), quat2rotm(normalize(sol)))
+
+    if data.SDP_status != MOI.OPTIMAL
+        @warn "[angular_bounds_quat] Returned status $(data.SDP_status). Results may not be lower bound!"
+        gap = -1
+    end
+
+    return Δθ, data.SDP_status, gap
+end
+
+"""
+Also include chirality / backproj constraints (returns slow prog in general)
+"""
+function angular_bounds_quat(center, H, prob; silent=false, order=1)
+    qc = center[1:4]
+    # marginalize out positions via projection
+    P = [diagm(ones(4)) zeros(4,3)]
+    H_r = inv(P*inv(H)*P')
+
+    @polyvar q[1:4]
+    @polyvar t[1:3]
+    vars = [q; t]
+
+    obj = -(q - qc)'*(q - qc)
+
+    # constraints
+    # expr ≥ 0
+    ineq = Vector{TSSOS.Poly{Float64}}()
+    # expr = 0
+    eq = Vector{TSSOS.Poly{Float64}}()
+
+    # bounding ellipse
+    # push!(ineq, 1 - (q - qc)'*H_r*(q - qc))
+    q_front, q_backproj = uncertaintyset_linf_q(prob.y, prob.r, prob.b, prob.camK)
+    X = [vars; 1]*[vars; 1]'
+    slack = 1e-3
+    for (i,q) in enumerate(q_front)
+        Q = Symmetric([q.H  q.c;  q.c'  q.d])
+        push!(ineq, -tr(Q*X) - slack)
+    end
+    for (i,q) in enumerate(q_backproj)
+        Q = Symmetric([q.H  q.c;  q.c'  q.d])
+        push!(ineq, -tr(Q*X))
+    end
+
+    push!(ineq, q'*qc) # enforces within 90 deg
+
+    # SO(3) constraints
+    eq = [q'*q - 1]
+
+    # solve
+    pop = [obj; ineq; eq]
+    order = order
+    opt, sol, data, gap = cs_tssos_first(pop, vars, order, numeq=length(eq), TS="MD", QUIET=silent, solution=true, refine=true)
+
+    ## Extract solution
+    Δθ = roterror(quat2rotm(qc), quat2rotm(normalize(sol)))
+
+    if data.SDP_status != MOI.OPTIMAL
+        @warn "[angular_bounds_quat] Returned status $(data.SDP_status). Results may not be lower bound!"
+        gap = -1
+    end
+
+    return Δθ, data.SDP_status, gap
+end
+
+
 
 """
 Uncertainty bound from "Object Pose Estimation with Statistical Guarantees"
@@ -330,25 +434,34 @@ Returns radius of sphere and SDP status.
 
 Why solve for a joint bounding sphere? The RANSAG approach makes much more sense.
 """
-function bounding_sphere(center, y, r, b, camK; p=2, order=1, silent=false)
+function bounding_sphere(center, y, r, b, camK; p=2, R=false, order=1, silent=false)
     (p == 2 || p == Inf) || error("only accepts `p=2` or `p=Inf`")
 
     if p == 2
         q_front, q_backproj = uncertaintyset_l2(y, r, b, camK)
         q_eqs = SO3_constraints()
     else
-        # does not work
-        # q_front, q_backproj = uncertaintyset_linf_R(y, r, b, camK)
-        # q_eqs = SO3_constraints()
-        q_front, q_backproj = uncertaintyset_linf_q(y, r, b, camK)
-        q_eqs = q_constraints()
+        if R
+            q_front, q_backproj = uncertaintyset_linf_R(y, r, b, camK)
+            q_new = []
+            for q1 in q_backproj, q2 in q_backproj
+                H = -q1.c*q2.c'
+                H += H'
+                push!(q_new, Quadratic(H, zeros(12), 0.)) # ≤ 0
+            end
+            q_front = [q_front; q_new]
+            q_eqs = SO3_constraints()
+        else
+            q_front, q_backproj = uncertaintyset_linf_q(y, r, b, camK)
+            q_eqs = q_constraints()
+        end
     end
 
     return bounding_sphere(center, q_front, q_backproj, q_eqs; order=order, silent=silent)
 end
 
-function bounding_sphere(center, prob; order=1, silent=false)
-    return bounding_sphere(center, prob.y, prob.r, prob.b, prob.camK; p=prob.p, order=order, silent=silent)
+function bounding_sphere(center, prob; R=false, order=1, silent=false)
+    return bounding_sphere(center, prob.y, prob.r, prob.b, prob.camK; p=prob.p, R=R, order=order, silent=silent)
 end
 
 
@@ -488,36 +601,38 @@ Options:
 - BEST: ellipse + chirality (3)
 - FASTEST: ellipse only (4)
 """
-function refine_bbox(center, H, y, r, b, camK; p=2, mode=3, order=1, H_t=nothing, silent=false)
+function refine_bbox(center, H, y, r, b, camK; p=2, R=true, mode=3, order=1, H_t=nothing, silent=false)
     (p == 2 || p == Inf) || error("only accepts `p=2` or `p=Inf`")
 
     if p == 2
         q_front, q_backproj = uncertaintyset_l2(y, r, b, camK)
         q_eqs = SO3_constraints()
+        R=true
     else
-        ## Rotation Version
-        # q_front, q_backproj = uncertaintyset_linf_R(y, r, b, camK)
-        # q_eqs = SO3_constraints()
-        ## Quaternion Version
-        q_front, q_backproj = uncertaintyset_linf_q(y, r, b, camK)
-        q_eqs = q_constraints()
+        if R
+            q_front, q_backproj = uncertaintyset_linf_R(y, r, b, camK)
+            q_eqs = SO3_constraints()
+        else
+            q_front, q_backproj = uncertaintyset_linf_q(y, r, b, camK)
+            q_eqs = q_constraints()
+        end
     end
 
     if isnothing(H_t)
         # marginalize via projection
-        P = [zeros(3,p == 2 ? 9 : 4) diagm(ones(3))]
-        # P = [zeros(3,9) diagm(ones(3))]
+        P = [zeros(3,R ? 9 : 4) diagm(ones(3))]
         H_t = inv(P*pinv(H)*P')
     end
     return refine_bbox(center, H, q_front, q_backproj, q_eqs; p=p, mode=mode, order=order, H_t=H_t, silent=silent)
 end
 
-function refine_bbox(center, H, prob; mode=3, order=1, H_t=nothing, silent=false)
-    refine_bbox(center, H, prob.y, prob.r, prob.b, prob.camK; p=prob.p, mode=mode, order=order, H_t=H_t, silent=silent)
+function refine_bbox(center, H, prob; R=true, mode=3, order=1, H_t=nothing, silent=false)
+    refine_bbox(center, H, prob.y, prob.r, prob.b, prob.camK; p=prob.p, R=R, mode=mode, order=order, H_t=H_t, silent=silent)
 end
 
 function refine_bbox(center, H, q_front, q_backproj, q_eqs; p=2, mode=3, order=1, H_t=nothing, silent=false)
-    if p == 2
+    dim = length(center)
+    if dim == 12
         @polyvar R[1:3,1:3]
     else
         @polyvar R[1:4] # quaternion
@@ -667,17 +782,10 @@ RPY angular bounds.
 
 Current status: solves with SLOW_PROGRESS for full PURSE constraints.
 Solves to optimality with only ellipse constraints, but bounds are all 90 deg
-
-TODO: try with a quaternion ellipse--need to do quat products
 """
 function angular_bounds_rpy(center, H, prob; silent=false, order=3)
-    if prob.p == 2
-        Rc = reshape(center[1:9],3,3)
-        P = [diagm(ones(9)) zeros(9,3)]
-    else
-        Rc = quat2rotm(center[1:4])
-        P = [diagm(ones(4)) zeros(4,3)]
-    end
+    Rc = reshape(center[1:9],3,3)
+    P = [diagm(ones(9)) zeros(9,3)]
     # marginalize out positions via projection
     H_r = inv(P*inv(H)*P')
 
@@ -713,8 +821,8 @@ function angular_bounds_rpy(center, H, prob; silent=false, order=3)
         append!(ineq, c)
 
         # this constraint prevents degenerate solutions where s = 0
-        tol = 1e-5
-        append!(ineq, -(s .- tol))
+        # tol = 1e-5
+        # append!(ineq, -(s .- tol))
 
         # for i = 1:3
         #     push!(ineq, s[i]^2 + c[i]^2 - 1)
@@ -760,7 +868,7 @@ function angular_bounds_rpy(center, H, prob; silent=false, order=3)
         # Main.@infiltrate
     end
 
-    return Δθs, status_sdp, gaps
+    return Δθs, gaps, status_sdp
 end
 
 
@@ -862,7 +970,7 @@ function angular_bounds_rpy_quat(center, H, prob; silent=false, order=6)
         # Main.@infiltrate
     end
 
-    return Δθs, status_sdp, gaps
+    return Δθs, gaps, status_sdp
 end
 
 
@@ -973,6 +1081,11 @@ function bounding_ellipse_quat(center, q_backproj, q_front, q_eqs; order=2, sile
     ## optimize!
     set_optimizer(model, Mosek.Optimizer)
     optimize!(model)
+
+    # TODO: less sloppy
+    c = [all_constraints(model, t...) for t in list_of_constraint_types(model)]
+    X = dual(c[2][1])
+    # this appears to be a focal point? It is certainly not an extreme point
 
     if !is_solved_and_feasible(model)
         @warn "[bounding_ellipse_quat] Returned status $(termination_status(model)). Results may not be lower bound!"
