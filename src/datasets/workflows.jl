@@ -107,7 +107,16 @@ end
 function linfq_workflow(object_id, frame)
     # load data
     keypoint_data, gt = load_keypoint_data(calibrate_lp, p=Inf, α=0.1)
+
+    if !(object_id in keys(keypoint_data["y"][frame]))
+        return -1
+    end
+    print("$frame ")
     prob = get_problem(keypoint_data, object_id, frame)
+
+    if length(prob.y) < 3
+        return -1
+    end
 
     # pose estimate (two options)
     # gaussianpose = PnP: better pose estimate but worse center, slower
@@ -117,12 +126,13 @@ function linfq_workflow(object_id, frame)
 
     # bounding sphere
     # order 2 is generally tight, order 1 is not
-    rad, status_sphere = bounding_sphere(center, prob; order=2, R=false, silent=true)
+    # rad, status_sphere = bounding_sphere(center, prob; order=2, R=false, silent=true)
 
     # bounding ellipse
     # Tight at second order! Fails for first order
     # TODO: check tightness cert
-    H, status_slem = bounding_ellipse_quat(center, prob; order=2, silent=true)
+    H, gap_slem, status_slem = bounding_ellipse_quat(center, prob; order=2, silent=true)
+    return gap_slem
 
     # translation bounding box
     # order 2 is tight and not terribly slow
@@ -135,8 +145,8 @@ function linfq_workflow(object_id, frame)
 
     # angular bounds: 1 angle
     # ellipse only version works better than all constraints (which gives slow prog)
-    Δθ, status_ang = PoseUncertaintySets.angular_bounds_quat(center, H; silent=true, order=1) # just reason over ellipse
-    # Δθ, status_ang = PoseUncertaintySets.angular_bounds_quat(center, H, prob; silent=false, order=3) # imposes backproj / chirality too
+    Δθ, status_ang = angular_bounds_quat(center, H; silent=true, order=1) # just reason over ellipse
+    # Δθ, status_ang = angular_bounds_quat(center, H, prob; silent=false, order=3) # imposes backproj / chirality too
     
 
     # plotting

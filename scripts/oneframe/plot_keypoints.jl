@@ -2,6 +2,7 @@
 # Lorenzo Shaikewitz, 6/13/2025
 
 import Plots
+using SimpleRotations
 
 using PoseUncertaintySets
 

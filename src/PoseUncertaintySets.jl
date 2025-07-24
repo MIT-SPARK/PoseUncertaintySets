@@ -29,12 +29,12 @@ include("uncertainty_set.jl")
 include("uncertainty_bounds.jl")
 export bounding_ellipse, bounding_sphere, bounding_ellipse_quat
 include("explicit_bounds.jl")
-export purse_bounds, angular_bounds_rpy, refine_bbox
+export purse_bounds, angular_bounds_rpy, angular_bounds_quat, refine_bbox
 
 include("datasets/poses.jl")
 export dataset_pose_est, calc_pose_errors, calc_projection_errors
 include("datasets/bounds.jl")
-export dataset_slem_bounds, dataset_ransag_bounds
+export dataset_slem_bounds, dataset_slem_bounds_quat, dataset_ransag_bounds
 include("datasets/workflows.jl")
 export l2_workflow, linfR_workflow, linfq_workflow
 

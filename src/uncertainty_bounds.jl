@@ -294,7 +294,7 @@ function bounding_ellipse_quat(center, q_backproj, q_front, q_eqs; order=2, sile
     pop = [obj; ineq; eq]
     order = order
     # CS="MD" doesn't make a difference runtime wise
-    opt, sol, data, gap, model = cs_tssos_first(pop, vars, order, numeq=length(eq), TS=false, CS=false, QUIET=false, solve=false, solution=false, MomentOne=true)
+    opt, sol, data, gap, model = cs_tssos_first(pop, vars, order, numeq=length(eq), TS=false, CS=false, QUIET=silent, solve=false, solution=false, MomentOne=true)
 
     if silent
         set_silent(model)
@@ -352,7 +352,7 @@ function bounding_ellipse_quat(center, q_backproj, q_front, q_eqs; order=2, sile
     X = dual(c[2][1])
     # this appears to be a focal point? It is certainly not an extreme point
     gap = 1
-    if rank(X[1:8,1:8],1e-3) == 1
+    if rank(X[1:8,1:8],1e-2) == 1
         gap = 0
     end
 

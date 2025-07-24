@@ -29,7 +29,7 @@ Ri, ti, gapi, statusi = maxmarginpose(probi; silent=true)
 # center2 = [vec(R2); t2]
 # rad2, statusb2 = bounding_sphere(center2, prob2; order=2, silent=false)
 centeri = [rotm2quat(Ri); ti]
-radi, statusbi = bounding_sphere(centeri, probi; order=2, silent=false) # uses quat form
+radi, statusbi = bounding_sphere(centeri, probi; R=false, order=2, silent=false) # uses quat form
 
 # bounding ELLIPSE
 center2 = [vec(R2); t2]
@@ -37,7 +37,7 @@ H2, statusb2 = bounding_ellipse(center2, prob2; silent=false)
 centeri = [vec(Ri); ti]
 Hi, statusbi = bounding_ellipse(centeri, probi; silent=false) # uses rot with redundant backproj constraints
 centeri = [rotm2quat(Ri); ti]
-Hqi, statusbqi = bounding_ellipse_quat(centeri, probi; order=2, silent=false)
+Hqi, gapqi, statusbqi = bounding_ellipse_quat(centeri, probi; order=2, silent=false)
 
 # translation bounds
 bounds2, gaps2, statusx2 = refine_bbox(center2, H2, prob2; mode=3, order=1, silent=true) # mode 3 only fastest for 1st order

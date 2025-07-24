@@ -178,17 +178,13 @@ end
 """
 RPY angular bounds.
 
-Current status: solves with SLOW_PROGRESS for full PURSE constraints.
-Solves to optimality with only ellipse constraints, but bounds are all 90 deg
+Current status: solves to optimality with ellipse constraints, need order 4
 """
-function angular_bounds_rpy(center, H, prob; silent=false, order=3)
+function angular_bounds_rpy(center, H; silent=false, order=3)
     Rc = reshape(center[1:9],3,3)
     P = [diagm(ones(9)) zeros(9,3)]
     # marginalize out positions via projection
     H_r = inv(P*inv(H)*P')
-
-    # TEMP: get constraints
-    # q_front, q_backproj = uncertaintyset_l2(prob.y, prob.r, prob.b, prob.camK)
 
     @polyvar c[1:3]
     @polyvar s[1:3]
@@ -218,13 +214,83 @@ function angular_bounds_rpy(center, H, prob; silent=false, order=3)
         # but if it does not hold these bounds are the wrong approach anyways
         append!(ineq, c)
 
+        eq = Vector{TSSOS.Poly{Float64}}()
+        for i = 1:3
+            push!(eq, s[i]^2 + c[i]^2 - 1)
+        end
+
+        # Solve with TSSOS
+        pop = [obj; ineq; eq]
+        opt, sol, data, gap = cs_tssos_first(pop, vars, order, numeq=length(eq), CS="MD", TS="block", QUIET=silent, solution=true, refine=false)
+
+        if !silent
+            println("SDP status: $(data.SDP_status)")
+            # println("Loc status: $(refine_status)")
+        end
+
+        c_val = (vars=>sol) .|> c
+        s_val = (vars=>sol) .|> s
+        eq_val = (vars=>sol) .|> eq
+
+        (sum(abs.(eq_val) .> 1e-3) == 0) || @warn "At least one equality constraint violated"
+
+        # save
+        # Δθs[i] = roterror(R_est, Rc)
+        Δθs[i] = atan(s_val[i], c_val[i])*180/π
+        status_sdp[i] = data.SDP_status
+        gaps[i] = gap
+
+        # Main.@infiltrate
+    end
+
+    return Δθs, gaps, status_sdp
+end
+
+
+"""
+Version that uses ellipse and backproj/chirality constraints
+"""
+function angular_bounds_rpy(center, H, prob; silent=false, order=3)
+    Rc = reshape(center[1:9],3,3)
+
+    # TEMP: get constraints
+    q_front, q_backproj = uncertaintyset_l2(prob.y, prob.r, prob.b, prob.camK)
+
+    @polyvar c[1:3]
+    @polyvar s[1:3]
+    @polyvar t[1:3]
+    vars = [c; s; t]
+
+    Rx = [1 0 0; 0 c[1] -s[1]; 0 s[1] c[1]]
+    Ry = [c[2] 0 s[2]; 0 1 0; -s[2] 0 c[2]]
+    Rz = [c[3] s[3] 0; -s[3] c[3] 0; 0 0 1]
+
+    # solve for each axis
+    Δθs = Vector{Any}(undef, 3)
+    status_sdp = Vector{MOI.TerminationStatusCode}(undef, 3)
+    gaps = -ones(3)
+    for i = 1:3
+        R = Rx*Ry*Rz*Rc
+
+        # objective: minimize cos(θ)
+        obj = c[i]
+        
+        # constraints
+        # expr ≥ 0
+        ineq = Vector{TSSOS.Poly{Float64}}()
+        push!(ineq, 1 - ([vec(R); t] - center)'*H*([vec(R); t] - center))
+        
+        # c > 0 forces to be within π/2 of center--this is an assumption
+        # but if it does not hold these bounds are the wrong approach anyways
+        append!(ineq, c)
+
         # extra constraints
-        # for (i,q) in enumerate(q_backproj)
-        #     push!(ineq, -[vec(R);t;1]'*[q.H  q.c;  q.c'  q.d]*[vec(R);t;1])
-        # end
-        # for (i,q) in enumerate(q_front)
-        #     push!(ineq, -[vec(R);t;1]'*[q.H  q.c;  q.c'  q.d]*[vec(R);t;1])
-        # end
+        for (i,q) in enumerate(q_backproj)
+            push!(ineq, -[vec(R);t;1]'*[q.H  q.c;  q.c'  q.d]*[vec(R);t;1])
+        end
+        for (i,q) in enumerate(q_front)
+            push!(ineq, -[vec(R);t;1]'*[q.H  q.c;  q.c'  q.d]*[vec(R);t;1])
+        end
 
         eq = Vector{TSSOS.Poly{Float64}}()
         for i = 1:3
@@ -240,8 +306,81 @@ function angular_bounds_rpy(center, H, prob; silent=false, order=3)
             # println("Loc status: $(refine_status)")
         end
 
-        # R_est = project2SO3((vars => sol) .|> R)
-        # Rc = project2SO3(Rc)
+        c_val = (vars=>sol) .|> c
+        s_val = (vars=>sol) .|> s
+        eq_val = (vars=>sol) .|> eq
+
+        (sum(abs.(eq_val) .> 1e-3) == 0) || @warn "At least one equality constraint violated"
+
+        # save
+        # Δθs[i] = roterror(R_est, Rc)
+        Δθs[i] = atan(s_val[i], c_val[i])*180/π
+        status_sdp[i] = data.SDP_status
+        gaps[i] = gap
+
+        # Main.@infiltrate
+    end
+
+    return Δθs, gaps, status_sdp
+end
+
+
+"""
+Luca's idea: use auxillary variable for rotations
+"""
+function angular_bounds_rpy2(center, H; silent=false, order=3)
+    Rc = reshape(center[1:9],3,3)
+    P = [diagm(ones(9)) zeros(9,3)]
+    # marginalize out positions via projection
+    H_r = inv(P*inv(H)*P')
+
+    @polyvar c[1:3]
+    @polyvar s[1:3]
+    @polyvar R[1:3,1:3]
+    vars = [c; s; vec(R)]
+
+    Rx = [1 0 0; 0 c[1] -s[1]; 0 s[1] c[1]]
+    Ry = [c[2] 0 s[2]; 0 1 0; -s[2] 0 c[2]]
+    Rz = [c[3] s[3] 0; -s[3] c[3] 0; 0 0 1]
+
+    # solve for each axis
+    Δθs = Vector{Any}(undef, 3)
+    status_sdp = Vector{MOI.TerminationStatusCode}(undef, 3)
+    gaps = -ones(3)
+    for i = 1:3
+        # objective: minimize cos(θ)
+        obj = c[i]
+        
+        # constraints
+        # expr ≥ 0
+        ineq = Vector{TSSOS.Poly{Float64}}()
+        push!(ineq, 1 - (vec(R) - vec(Rc))'*H_r*(vec(R) - vec(Rc)))
+        
+        # c > 0 forces to be within π/2 of center--this is an assumption
+        # but if it does not hold these bounds are the wrong approach anyways
+        append!(ineq, c)
+
+        eq = Vector{TSSOS.Poly{Float64}}()
+        for i = 1:3
+            push!(eq, s[i]^2 + c[i]^2 - 1)
+        end
+        append!(eq, vec(Ry'*Rx'*R) - vec(Rz*Rc))
+        # SO(3) equality constraints
+        # orthogonality
+        append!(eq, vec(R'*R - I))
+        # right hand rule
+        append!(eq, R[1:3,3] .- cross(R[1:3,1],R[1:3,2]))
+        append!(eq, R[1:3,1] .- cross(R[1:3,2],R[1:3,3]))
+        append!(eq, R[1:3,2] .- cross(R[1:3,3],R[1:3,1]))
+
+        # Solve with TSSOS
+        pop = [obj; ineq; eq]
+        opt, sol, data, gap = cs_tssos_first(pop, vars, order, numeq=length(eq), CS="MD", TS="block", QUIET=silent, solution=true, refine=false)
+
+        if !silent
+            println("SDP status: $(data.SDP_status)")
+            # println("Loc status: $(refine_status)")
+        end
 
         c_val = (vars=>sol) .|> c
         s_val = (vars=>sol) .|> s
