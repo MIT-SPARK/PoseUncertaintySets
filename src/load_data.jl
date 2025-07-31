@@ -52,6 +52,18 @@ function load_keypoint_data(cal_fn=calibrate_lp; p=2, α=0.1, path_kpts3d="../da
     return data, gt_test
 end
 
+function load_keypoint_data(cal_fn, dataset; p=2, α=0.1)
+    path_kpts3d = "../data/$dataset/kpts3d.json"
+    parent_cal = "../data/$dataset/cal/000002"
+    parent_test = "../data/$dataset/test/000002"
+    detections_cal_path = "../data/$dataset/detections_cal.json"
+    detections_test_path = "../data/$dataset/detections_test.json"
+    
+    return load_keypoint_data(cal_fn; p=p, α=α, path_kpts3d=path_kpts3d,
+            parent_cal=parent_cal, parent_test=parent_test, 
+            detections_cal_path=detections_cal_path, detections_test_path=detections_test_path)
+end
+
 
 """
     calibrate_lp(cal_kpts, cal_gt, test_kpts, kpt_lib, p=2, α=0.1)

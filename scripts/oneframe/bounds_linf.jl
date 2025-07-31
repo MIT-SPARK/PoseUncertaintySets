@@ -13,8 +13,8 @@ object_id = 9
 frame = 11
 
 # Load data
-keypoint_data2, gt = load_keypoint_data(calibrate_lp, p=2  , α=0.1)
-keypoint_datai, gt = load_keypoint_data(calibrate_lp, p=Inf, α=0.1)
+keypoint_data2, gt = load_keypoint_data(calibrate_lp, "lmo"; p=2  , α=0.1)
+keypoint_datai, gt = load_keypoint_data(calibrate_lp, "lmo"; p=Inf, α=0.1)
 
 prob2 = get_problem(keypoint_data2, object_id, frame)
 probi = get_problem(keypoint_datai, object_id, frame)

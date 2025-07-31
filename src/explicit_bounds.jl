@@ -535,6 +535,7 @@ function angular_ellipse_axang(center, H; silent=false, order=3)
          ω[3]  0  -ω[1];
          -ω[2]  ω[1]  0]
     push!(ineq, 1 - (vec((I + s*K + (1 - c)*K*K)*R̄) - r̄)'*H_r*(vec((I + s*K + (1 - c)*K*K)*R̄) - r̄))
+    # r̄ cancels here but whatever
 
     # R ∈ SO(3)
     push!(eq, s^2 + c^2 - 1)
@@ -551,7 +552,7 @@ function angular_ellipse_axang(center, H; silent=false, order=3)
     # if data.SDP_status != MOI.OPTIMAL
 
     # extract angle
-    angle = acos(opt)
+    angle = acos(opt)*180/π
     # angle is radius, axis doesn't matter for this particular problem.
 end
 

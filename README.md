@@ -22,3 +22,21 @@ Julia code for Pose Uncertainty Sets
 2. `exp_estpose`
 3. `exp_bounds` (TODO)
 4. `exp_coverage` (TODO)
+
+
+## Setting up the data folder
+To run experiments you will need a data folder. We show the default file structure below.
+```
+├── data
+│   ├── lmo
+│   │   ├── models_eval
+│   │   ├── cal
+│   │   ├── test
+│   │   ├── kpts3d.json
+│   │   ├── detections_cal.json
+│   │   ├── detections_test.json
+│   ├── ycbv
+│   ├── cast
+├── PoseUncertaintySets
+```
+TODO: where to find all this / quick download script?
