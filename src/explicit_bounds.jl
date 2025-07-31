@@ -328,7 +328,7 @@ end
 """
 Luca's idea: use auxillary variable for rotations
 """
-function angular_bounds_rpy2(center, H; silent=false, order=3)
+function angular_bounds_rpy2(center, H; silent=false, order=2)
     Rc = reshape(center[1:9],3,3)
     P = [diagm(ones(9)) zeros(9,3)]
     # marginalize out positions via projection
@@ -364,7 +364,7 @@ function angular_bounds_rpy2(center, H; silent=false, order=3)
         for i = 1:3
             push!(eq, s[i]^2 + c[i]^2 - 1)
         end
-        append!(eq, vec(Ry'*Rx'*R) - vec(Rz*Rc))
+        append!(eq, vec(Rx'*R) - vec(Ry*Rz*Rc))
         # SO(3) equality constraints
         # orthogonality
         append!(eq, vec(R'*R - I))

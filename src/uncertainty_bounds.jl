@@ -329,7 +329,7 @@ function bounding_ellipse_quat(center, q_backproj, q_front, q_eqs; order=2, sile
     # get PSD variables
     psdvars = all_variables(model)[1:length(shapeΔ)]
     shapeΔ = Dict(zip(psdvars, shapeΔ))
-    tvW = Dict(zip(psdvars, abs.(triangle_vec(W))))
+    tvW = Dict(zip(psdvars, abs.(triangle_vec(W)))) # all +1
     for constraint in co.func
         if constraint.constant == 0
             @constraint(model, constraint == 0)
