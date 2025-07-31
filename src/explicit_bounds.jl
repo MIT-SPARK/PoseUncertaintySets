@@ -503,6 +503,59 @@ function angular_bounds_rpy_quat(center, H, prob; silent=false, order=6)
 end
 
 
+"""
+Axis-Angle space ellipse?
+"""
+function angular_ellipse_axang(center, H; silent=false, order=3)
+    r̄ = center[1:9]
+    R̄ = reshape(r̄, 3,3)
+    P = [diagm(ones(9)) zeros(9,3)]
+    H_r = inv(P*inv(H)*P')
+
+    @polyvar s
+    @polyvar c
+    @polyvar ω[1:3]
+    # vars = [vec(R); s; c; ω]
+    vars = [s;c;ω]
+
+    # objective
+    obj = c
+
+    # constraints
+    # expr ≥ 0
+    ineq = Vector{TSSOS.Poly{Float64}}()
+    # expr = 0
+    eq = Vector{TSSOS.Poly{Float64}}()
+
+    # 90 degree rotation constraint
+    push!(ineq, c)
+
+    # ellipse constraint
+    K = [0  -ω[3]  ω[2];
+         ω[3]  0  -ω[1];
+         -ω[2]  ω[1]  0]
+    push!(ineq, 1 - (vec((I + s*K + (1 - c)*K*K)*R̄) - r̄)'*H_r*(vec((I + s*K + (1 - c)*K*K)*R̄) - r̄))
+
+    # R ∈ SO(3)
+    push!(eq, s^2 + c^2 - 1)
+    push!(eq, ω[1]^2 + ω[2]^2 + ω[3]^2 - 1)
+
+    # solve
+    pop = [obj; ineq; eq]
+    order = order
+    opt, sol, data, gap = cs_tssos_first(pop, vars, order, numeq=length(eq), TS=false, CS="MD", QUIET=silent, solution=true, refine=false)
+
+    # Main.@infiltrate
+
+    # warn if not actually opt
+    # if data.SDP_status != MOI.OPTIMAL
+
+    # extract angle
+    angle = acos(opt)
+    # angle is radius, axis doesn't matter for this particular problem.
+end
+
+
 
 """
 Uncertainty bound from "Object Pose Estimation with Statistical Guarantees"
