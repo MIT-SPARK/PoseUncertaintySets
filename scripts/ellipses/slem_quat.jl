@@ -48,5 +48,5 @@ end
 println("")
 
 # save!
-pose_dict = Dict("ellipses"=>ellipses, "data"=>data)
-serialize(savepath, pose_dict)
+out_dict = Dict("ellipses"=>ellipses, "data"=>data)
+serialize(savepath, out_dict)

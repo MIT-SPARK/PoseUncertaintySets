@@ -14,7 +14,6 @@ dataset = "lmo"
 p = 2
 
 
-
 # load pose data
 datapath(method) = "../data/$dataset/pose_$(method)_$(round(Int,α*100))_$(string(p)).dat"
 pose_dict = deserialize(datapath("pnp2"))

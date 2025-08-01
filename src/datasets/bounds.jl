@@ -163,16 +163,18 @@ by Heng Yang and Marco Pavone
 - `statuses`: runtime of each stage (Dict of vectors)
 - `times`: runtime of each stage (Dict of Float64)
 """
-function dataset_ransag_bounds(keypoint_data, pose_data, object_id)
+function dataset_ransag_bounds(keypoint_data, pose_data, object_id; order=2)
     # setup
     camK = keypoint_data["K"]
     num_frames = length(keys(pose_data[object_id][1]))
 
     Δθs = Dict{Int, Float64}()
     Δts = Dict{Int, Float64}()
-    statuses = Dict{Int, Any}()
+    statuses_t = Dict{Int, MOI.TerminationStatusCode}()
+    statuses_a = Dict{Int, MOI.TerminationStatusCode}()
     times = Dict{Int, Float64}()
-    gaps = Dict{Int, Any}()
+    gaps_t = Dict{Int, Float64}()
+    gaps_a = Dict{Int, Float64}()
 
     println("Starting $num_frames frames...")
     for frame in sort(collect(keys(pose_data[object_id][1])))
@@ -194,16 +196,18 @@ function dataset_ransag_bounds(keypoint_data, pose_data, object_id)
         center = [vec(R_est); t_est]
 
         # PURSE bounds
-        out = @timed purse_bounds(center, y, r, b, camK; order=2, silent=true)
+        out = @timed purse_bounds(center, y, r, b, camK; order=order, silent=true)
         trans_bound, trans_gap, ang_bound, ang_gap, status = out.value
         time = out.time - out.compile_time
         
         # save
         Δθs[frame] = ang_bound
         Δts[frame] = trans_bound
-        statuses[frame] = status
+        statuses_t[frame] = status[1]
+        statuses_a[frame] = status[2]
         times[frame] = time
-        gaps[frame] = [trans_gap; ang_gap]
+        gaps_t[frame] = trans_gap
+        gaps_a[frame] = ang_gap
 
         # if isdefined(Main, :Infiltrator) Main.infiltrate(@__MODULE__, Base.@locals, @__FILE__, @__LINE__) end # 🚨 INFILTRATOR 🚨
 
@@ -211,6 +215,8 @@ function dataset_ransag_bounds(keypoint_data, pose_data, object_id)
             print("$frame ")
         end
     end
+    statuses = (statuses_t, statuses_a)
+    gaps = (gaps_t, gaps_a)
 
     return Δθs, Δts, statuses, times, gaps
 end

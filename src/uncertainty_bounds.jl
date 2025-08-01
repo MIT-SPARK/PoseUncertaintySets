@@ -134,9 +134,9 @@ function bounding_ellipse(center, q_front, q_backproj, q_eqs; solver=Mosek.Optim
     X = dual(model[:psdcon])
     gap = sum(eigvals(X) .> 1e-2) - 1
 
-    if !silent && !is_solved_and_feasible(model)
-        # not really a warning
-        @warn "[bounding_ellipse] Solver terminated with status $(termination_status(model))"
+    if !is_solved_and_feasible(model)
+        gap = -1
+        silent || @warn "[bounding_ellipse] Solver terminated with status $(termination_status(model))"
     end
     H0_val = value.(H0)
 
@@ -234,7 +234,7 @@ function bounding_sphere(center, q_front, q_backproj, q_eqs; order=1, silent=fal
     opt, sol, data, gap = cs_tssos_first(pop, vars, order, numeq=length(eq), TS=false, CS="MD", QUIET=silent, solution=true, refine=false)
 
     if data.SDP_status != MOI.OPTIMAL
-        @warn "[bounding_sphere] Returned status $(data.SDP_status). Results may not be lower bound!"
+        silent || @warn "[bounding_sphere] Returned status $(data.SDP_status). Results may not be lower bound!"
         gap = -1
     end
 
@@ -368,8 +368,8 @@ function bounding_ellipse_quat(center, q_backproj, q_front, q_eqs; order=2, sile
 
     # TODO: I actually don't care about SLOW_PROGRESS
     if !is_solved_and_feasible(model)
-        @warn "[bounding_ellipse_quat] Returned status $(termination_status(model)). Results may not be lower bound!"
         gap = -1
+        silent || @warn "[bounding_ellipse_quat] Returned status $(termination_status(model)). Results may not be lower bound!"
     end
 
     return value.(H), gap, termination_status(model)

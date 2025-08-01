@@ -570,11 +570,11 @@ function purse_bounds(center, y, r, b, camK; p=2, order=2, silent=false)
         q_front, q_backproj = uncertaintyset_l2(y, r, b, camK)
         q_eqs = SO3_constraints()
     else
-        # does not work
-        # q_front, q_backproj = uncertaintyset_linf_R(y, r, b, camK)
-        # q_eqs = SO3_constraints()
-        q_front, q_backproj = uncertaintyset_linf_q(y, r, b, camK)
-        q_eqs = q_constraints()
+        # TODO: need redundant constraints for this to work
+        q_front, q_backproj = uncertaintyset_linf_R(y, r, b, camK)
+        q_eqs = SO3_constraints()
+        # q_front, q_backproj = uncertaintyset_linf_q(y, r, b, camK)
+        # q_eqs = q_constraints()
     end
 
     return purse_bounds(center, q_front, q_backproj, q_eqs; order=order, silent=silent)
@@ -601,6 +601,8 @@ function purse_bounds(center, q_front, q_backproj, q_eqs; order=2, silent=false)
 
     status = Array{MOI.TerminationStatusCode}(undef, 2)
 
+    # 0: translations
+    # 1: rotations
     for λ = [0, 1]
         # objective
         if dim == 12
@@ -643,9 +645,12 @@ function purse_bounds(center, q_front, q_backproj, q_eqs; order=2, silent=false)
         opt, sol, data, gap = cs_tssos_first(pop, vars, order, numeq=length(eq), TS=false, CS=false, QUIET=silent, solution=true, refine=false)
 
         # if isdefined(Main, :Infiltrator) Main.infiltrate(@__MODULE__, Base.@locals, @__FILE__, @__LINE__) end # 🚨 INFILTRATOR 🚨
+        if isnothing(gap)
+            gap = -1
+        end
 
         if data.SDP_status != MOI.OPTIMAL
-            @warn "[purse_bounds] λ=$λ returned status $(data.SDP_status). Results may not be lower bound!"
+            silent || @warn "[purse_bounds] λ=$λ returned status $(data.SDP_status). Results may not be lower bound!"
             gap = -1
         end
         status[λ+1] = data.SDP_status
