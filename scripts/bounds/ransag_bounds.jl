@@ -12,10 +12,10 @@ using PoseUncertaintySets
 dataset = "lmo"
 α = 0.1
 p = 2 # cannot do Inf
-sdporder = 2 # used in paper
+sdporder = 1 # GRCC compares against order 1, RANSAG uses order 2!
 pose = "ransag"
 
-object_ids = [1,5,6,9,8,10,11,12]
+object_ids = [1,5,6,9,8,11,12]
 cadpath = "../data/$dataset/models_eval/"
 posepath = "../data/$dataset/pose_$(pose)_$(round(Int,α*100))_$(string(p)).dat"
 savepath = "../data/$dataset/bounds_ransag_o$(sdporder)_$(round(Int,α*100))_$(string(p)).dat"
@@ -33,7 +33,7 @@ for object_id in object_ids
     angles, trans, statuses, times, gaps = dataset_ransag_bounds(keypoint_data, poses, object_id; order=sdporder)
     
     # save
-    frames = collect(keys(Hs))
+    frames = collect(keys(angles))
     (d::Dict)(k) = d[k] # make dictionary callable
     bounds_obj = DataFrame(frame=frames, id=object_id, time=times.(frames),
                 θ=angles.(frames), t=trans.(frames), 
@@ -45,5 +45,5 @@ for object_id in object_ids
 end
 
 # save!
-out_dict = Dict("bounds", bounds)
+out_dict = Dict("bounds"=>bounds)
 serialize(savepath, out_dict)
