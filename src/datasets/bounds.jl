@@ -214,3 +214,77 @@ function dataset_ransag_bounds(keypoint_data, pose_data, object_id)
 
     return Δθs, Δts, statuses, times, gaps
 end
+
+
+
+
+"""
+    dataset_slem(keypoint_data, pose_data, object_id)
+
+Get ellipse via S-lemma.
+
+# Returns
+- `Hs`: bounding ellipse matrices (Dict of matrices)
+- `statuses`: runtime of each stage (Dict of vectors)
+- `times`: runtime of each stage (Dict of vectors)
+"""
+function dataset_slem(keypoint_data, pose_data, object_id; order=1, quat=false)
+    # setup
+    camK = keypoint_data["K"]
+    num_frames = length(keys(pose_data[object_id][1]))
+
+    
+    Hs = Dict{Int, Any}()
+    statuses = Dict{Int, Any}()
+    times = Dict{Int, Any}()
+    gaps = Dict{Int, Any}()
+
+    println("Starting $num_frames frames...")
+    for frame in sort(collect(keys(pose_data[object_id][1])))
+
+        # frame-specific data
+        r = keypoint_data["r"][frame][object_id]
+        y = keypoint_data["y"][frame][object_id]
+        b = keypoint_data["b"][object_id]
+
+        # eliminate missing measurements
+        y = y[1:2,r .>= 0]
+        y = [y[1:2,:]; ones(size(y,2))']
+        b = b[:, r .>= 0]
+        r = r[r .>= 0]
+
+        if length(r) < 3
+            continue
+        end
+
+        # load pose data
+        R_est = pose_data[object_id][1][frame]
+        t_est = pose_data[object_id][2][frame]
+        if quat
+            center = [rotm2quat(R_est); t_est]
+        else
+            center = [vec(R_est); t_est]
+        end
+
+        # S-Lemma
+        if quat
+            out = @timed bounding_ellipse_quat(center, y, r, b, camK; order=order, silent=true)
+        else
+            out = @timed bounding_ellipse(center, y, r, b, camK; order=order, silent=true)
+        end
+        H, gap_s, status_s = out.value
+        time_s = out.time - out.compile_time
+        
+        # save
+        Hs[frame] = H
+        statuses[frame] = status_s
+        times[frame] = time_s
+        gaps[frame] = gap_s
+
+        if mod(frame, 10) == 0
+            print("$frame ")
+        end
+    end
+
+    return Hs, statuses, times, gaps
+end

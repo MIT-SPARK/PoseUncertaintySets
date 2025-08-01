@@ -24,7 +24,7 @@ Returns ellipse matrix `H`, optimization status.
 - `H`: PSD ellipse matrix
 - `status`: termination status of optimization
 """
-function bounding_ellipse(center, y, r, b, camK; p=2, solver=Mosek.Optimizer, silent=false)
+function bounding_ellipse(center, y, r, b, camK; p=2, solver=Mosek.Optimizer, order=1, silent=false)
     (p == 2 || p == Inf) || error("only accepts `p=2` or `p=Inf`")
 
     if p == 2
@@ -34,6 +34,7 @@ function bounding_ellipse(center, y, r, b, camK; p=2, solver=Mosek.Optimizer, si
         ## Rotation Version
         q_front, q_backproj = uncertaintyset_linf_R(y, r, b, camK)
         q_new = []
+        # TODO: fix this it is slow!
         for q1 in q_backproj, q2 in q_backproj
             H = -q1.c*q2.c'
             H += H'
@@ -47,16 +48,17 @@ function bounding_ellipse(center, y, r, b, camK; p=2, solver=Mosek.Optimizer, si
         # q_eqs = q_constraints()
     end
 
-    return bounding_ellipse(center, q_front, q_backproj, q_eqs; solver=solver, silent=silent)
+    return bounding_ellipse(center, q_front, q_backproj, q_eqs; solver=solver, order=1, silent=silent)
 end
 
 
-function bounding_ellipse(center, prob; solver=Mosek.Optimizer, silent=false)
-    return bounding_ellipse(center, prob.y, prob.r, prob.b, prob.camK; p=prob.p, solver=solver, silent=silent)
+function bounding_ellipse(center, prob; solver=Mosek.Optimizer, order=1, silent=false)
+    return bounding_ellipse(center, prob.y, prob.r, prob.b, prob.camK; p=prob.p, solver=solver, order=1, silent=silent)
 end
 
 
-function bounding_ellipse(center, q_front, q_backproj, q_eqs; solver=Mosek.Optimizer, silent=false)
+function bounding_ellipse(center, q_front, q_backproj, q_eqs; solver=Mosek.Optimizer, order=1, silent=false)
+    (order == 1) || error("Order > 1 not implemented.")
 
     # JuMP model
     model = Model(solver)
@@ -122,11 +124,15 @@ function bounding_ellipse(center, q_front, q_backproj, q_eqs; solver=Mosek.Optim
     for (i,q) in enumerate(q_eqs)
         M += [η[i]*q.d  η[i]*q.c';  η[i]*q.c  η[i]*q.H]
     end
-    @constraint(model, triangle_vec(M) ∈ MOI.PositiveSemidefiniteConeTriangle(dim+1))
-    # @constraint(model, M >= 0, PSDCone())
+    # @constraint(model, psdcon, triangle_vec(M) ∈ MOI.PositiveSemidefiniteConeTriangle(dim+1))
+    @constraint(model, psdcon, M >= 0, PSDCone())
 
     # Solve with JuMP
     optimize!(model)
+
+    # TODO: not a great way to compute the gap is it?
+    X = dual(model[:psdcon])
+    gap = sum(eigvals(X) .> 1e-2) - 1
 
     if !silent && !is_solved_and_feasible(model)
         # not really a warning
@@ -134,7 +140,7 @@ function bounding_ellipse(center, q_front, q_backproj, q_eqs; solver=Mosek.Optim
     end
     H0_val = value.(H0)
 
-    return (H0_val, termination_status(model))
+    return (H0_val, gap, termination_status(model))
 end
 
 """
@@ -235,7 +241,7 @@ function bounding_sphere(center, q_front, q_backproj, q_eqs; order=1, silent=fal
     # CONVERT TO RADIUS
     rad = sqrt(-opt)
 
-    return rad, data.SDP_status
+    return rad, gap, data.SDP_status
 end
 
 
@@ -250,7 +256,11 @@ Implemented in a somewhat hacky way via TSSOS to achieve second order.
 5. Solve!
 """
 function bounding_ellipse_quat(center, prob; order=2, silent=false)
-    q_front, q_backproj = uncertaintyset_linf_q(prob.y, prob.r, prob.b, prob.camK)
+    return bounding_ellipse_quat(center, prob.y, prob.r, prob.b, prob.camK; order=order, silent=silent)
+end
+
+function bounding_ellipse_quat(center, y, r, b, camK; order=2, silent=false)
+    q_front, q_backproj = uncertaintyset_linf_q(y, r, b, camK)
     q_eqs = q_constraints()
     return bounding_ellipse_quat(center, q_backproj, q_front, q_eqs; order=order, silent=silent)
 end
@@ -356,6 +366,7 @@ function bounding_ellipse_quat(center, q_backproj, q_front, q_eqs; order=2, sile
         gap = 0
     end
 
+    # TODO: I actually don't care about SLOW_PROGRESS
     if !is_solved_and_feasible(model)
         @warn "[bounding_ellipse_quat] Returned status $(termination_status(model)). Results may not be lower bound!"
         gap = -1
