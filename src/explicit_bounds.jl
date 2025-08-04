@@ -562,10 +562,9 @@ function angular_sphere_axang_quat(center, H; silent=false, order=2)
     P = [diagm(ones(4)) zeros(4,3)]
     H_r = inv(P*inv(H)*P')
 
-    @polyvar s
     @polyvar c
-    @polyvar ω[1:3]
-    vars = [s;c;ω]
+    @polyvar sω[1:3]
+    vars = [c;sω]
 
     # objective
     obj = c
@@ -588,14 +587,13 @@ function angular_sphere_axang_quat(center, H; silent=false, order=2)
         q[4] = r[1]*s[4] + r[2]*s[3] - r[3]*s[2] + r[4]*s[1]
         return q
     end
-    q_shift = [c; s*ω]
+    q_shift = [c; sω]
     # q = qrot(q_shift, q̄)
     q = qmult(q_shift, q̄)
     push!(ineq, 1 - (q - q̄)'*H_r*(q - q̄))
 
     # R ∈ SO(3)
-    push!(eq, s^2 + c^2 - 1)
-    push!(eq, ω[1]^2 + ω[2]^2 + ω[3]^2 - 1)
+    push!(eq, sω[1]^2 + sω[2]^2 + sω[3]^2 + c^2 - 1)
 
     # solve
     pop = [obj; ineq; eq]
@@ -609,7 +607,6 @@ function angular_sphere_axang_quat(center, H; silent=false, order=2)
     angle = 2*acos(opt)*180/π
     # angle is radius, axis doesn't matter for this particular problem.
 end
-
 
 
 """
