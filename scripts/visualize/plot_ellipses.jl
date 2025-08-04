@@ -7,8 +7,6 @@ import Plots
 using PoseUncertaintySets
 using SimpleRotations
 
-Plots.plotlyjs()
-
 # settings used for figure
 object_id = 9
 frame = 352
@@ -34,6 +32,20 @@ S_t = reduce(hcat, S_t)
 # S_R, S_t = sample_set(prob; method="grid", Ht=Ht_o2)
 
 ## plot!
+Plots.gr()
+# order 1 ellipse
+surf = ellipse_to_surf(Ht_o1, t_est, 100)
+Plots.scatter3d(surf[1,:], surf[2,:], surf[3,:], label="order 1", msw=0.,c=3)
+# order 2 ellipse
+surf = ellipse_to_surf(Ht_o2, t_est, 100)
+Plots.scatter3d!(surf[1,:], surf[2,:], surf[3,:], label="order 2", msw=0.,c=4)
+# samples
+Plots.scatter3d!(eachrow(S_t)..., label="samples", c="black", msw=0.)
+# center and camera
+Plots.plot!([t_est[1]], [t_est[2]], [t_est[3]], seriestype=:scatter, label="center",c=1, msw=0., ms=2)
+plot_static = Plots.scatter!([0],[0],[0],label="camera",c=2)
+
+Plots.plotlyjs()
 Plots.plot([t_est[1]], [t_est[2]], [t_est[3]], seriestype=:scatter, label="center")
 Plots.scatter!([0],[0],[0],label="camera")
 
@@ -44,4 +56,4 @@ Plots.scatter3d!(surf[1,:], surf[2,:], surf[3,:], label="order 1")
 surf = ellipse_to_surf(Ht_o2, t_est, 100)
 Plots.scatter3d!(surf[1,:], surf[2,:], surf[3,:], label="order 2")
 # samples
-Plots.scatter3d!(eachrow(S_t)..., label="samples")
+plot_interative = Plots.scatter3d!(eachrow(S_t)..., label="samples")
