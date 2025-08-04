@@ -441,7 +441,7 @@ function angular_bounds_rpy_quat(center, H, prob; silent=false, order=6)
             q = qmult(s, [r[1]; -r[2:4]])
             q = qmult(r, q)
         end
-        q = qrot(qx, qrot(qy, qrot(qz, qc)))
+        q = qmult(qx ,qmult(qy, qmult(qz, qc)))
 
         # objective: minimize cos(θ)
         obj = c[i]
@@ -504,9 +504,9 @@ end
 
 
 """
-Axis-Angle space ellipse?
+Sphere in axis-angle space
 """
-function angular_ellipse_axang(center, H; silent=false, order=3)
+function angular_sphere_axang(center, H; silent=false, order=3)
     r̄ = center[1:9]
     R̄ = reshape(r̄, 3,3)
     P = [diagm(ones(9)) zeros(9,3)]
@@ -553,6 +553,60 @@ function angular_ellipse_axang(center, H; silent=false, order=3)
 
     # extract angle
     angle = acos(opt)*180/π
+    # angle is radius, axis doesn't matter for this particular problem.
+end
+
+
+function angular_sphere_axang_quat(center, H; silent=false, order=2)
+    q̄ = center[1:4]
+    P = [diagm(ones(4)) zeros(4,3)]
+    H_r = inv(P*inv(H)*P')
+
+    @polyvar s
+    @polyvar c
+    @polyvar ω[1:3]
+    vars = [s;c;ω]
+
+    # objective
+    obj = c
+
+    # constraints
+    # expr ≥ 0
+    ineq = Vector{TSSOS.Poly{Float64}}()
+    # expr = 0
+    eq = Vector{TSSOS.Poly{Float64}}()
+
+    # 90 degree rotation constraint
+    push!(ineq, c - √2/2)
+
+    # ellipse constraint
+    function qmult(r, s)
+        q = zeros(TSSOS.Poly{Float64}, 4)
+        q[1] = r[1]*s[1] - r[2:4]'*s[2:4]
+        q[2] = r[1]*s[2] + r[2]*s[1] + r[3]*s[4] - r[4]*s[3]
+        q[3] = r[1]*s[3] - r[2]*s[4] + r[3]*s[1] + r[4]*s[2]
+        q[4] = r[1]*s[4] + r[2]*s[3] - r[3]*s[2] + r[4]*s[1]
+        return q
+    end
+    q_shift = [c; s*ω]
+    # q = qrot(q_shift, q̄)
+    q = qmult(q_shift, q̄)
+    push!(ineq, 1 - (q - q̄)'*H_r*(q - q̄))
+
+    # R ∈ SO(3)
+    push!(eq, s^2 + c^2 - 1)
+    push!(eq, ω[1]^2 + ω[2]^2 + ω[3]^2 - 1)
+
+    # solve
+    pop = [obj; ineq; eq]
+    order = order
+    opt, sol, data, gap = cs_tssos_first(pop, vars, order, numeq=length(eq), TS=false, CS="MD", QUIET=silent, solution=true, MomentOne=true, refine=false)
+
+    # warn if not actually opt
+    # if data.SDP_status != MOI.OPTIMAL
+
+    # extract angle
+    angle = 2*acos(opt)*180/π
     # angle is radius, axis doesn't matter for this particular problem.
 end
 
