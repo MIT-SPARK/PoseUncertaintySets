@@ -48,17 +48,17 @@ function bounding_ellipse(center, y, r, b, camK; p=2, solver=Mosek.Optimizer, or
         # q_eqs = q_constraints()
     end
 
-    return bounding_ellipse(center, q_front, q_backproj, q_eqs; solver=solver, order=1, silent=silent)
+    return bounding_ellipse(center, q_front, q_backproj, q_eqs; solver=solver, order=order, silent=silent)
 end
 
 
 function bounding_ellipse(center, prob; solver=Mosek.Optimizer, order=1, silent=false)
-    return bounding_ellipse(center, prob.y, prob.r, prob.b, prob.camK; p=prob.p, solver=solver, order=1, silent=silent)
+    return bounding_ellipse(center, prob.y, prob.r, prob.b, prob.camK; p=prob.p, solver=solver, order=order, silent=silent)
 end
 
 
 function bounding_ellipse(center, q_front, q_backproj, q_eqs; solver=Mosek.Optimizer, order=1, silent=false)
-    (order == 1) || error("Order > 1 not implemented.")
+    (order == 1) || return bounding_ellipse_higherorder(center, q_front, q_backproj, q_eqs; solver=solver, order=order, silent=silent)
 
     # JuMP model
     model = Model(solver)
@@ -142,6 +142,142 @@ function bounding_ellipse(center, q_front, q_backproj, q_eqs; solver=Mosek.Optim
 
     return (H0_val, gap, termination_status(model))
 end
+
+
+"""
+Bounding ellipse with higher orders
+"""
+function bounding_ellipse_higherorder(center, y, r, b, camK; p=2, solver=Mosek.Optimizer, order=1, silent=false)
+    (p == 2 || p == Inf) || error("only accepts `p=2` or `p=Inf`")
+
+    if p == 2
+        q_front, q_backproj = uncertaintyset_l2(y, r, b, camK)
+        q_eqs = SO3_constraints()
+    else
+        ## Rotation Version
+        q_front, q_backproj = uncertaintyset_linf_R(y, r, b, camK)
+        q_new = []
+        # TODO: fix this it is slow!
+        for q1 in q_backproj, q2 in q_backproj
+            H = -q1.c*q2.c'
+            H += H'
+            push!(q_new, Quadratic(H, zeros(12), 0.)) # ≤ 0
+        end
+        q_front = [q_front; q_new]
+        q_eqs = SO3_constraints()
+
+        ## Quaternion Version
+        # q_front, q_backproj = uncertaintyset_linf_q(y, r, b, camK)
+        # q_eqs = q_constraints()
+    end
+
+    return bounding_ellipse_higherorder(center, q_front, q_backproj, q_eqs; solver=solver, order=order, silent=silent)
+end
+
+function bounding_ellipse_higherorder(center, prob; solver=Mosek.Optimizer, order=1, silent=false)
+    return bounding_ellipse_higherorder(center, prob.y, prob.r, prob.b, prob.camK; p=prob.p, solver=solver, order=order, silent=silent)
+end
+
+function bounding_ellipse_higherorder(center, q_front, q_backproj, q_eqs; solver=Mosek.Optimizer, order=1, silent=false)
+    @polyvar R[1:3,1:3]
+    @polyvar t[1:3]
+    vars = [vec(R); t]
+
+    # use proxy objective
+    W = [1 -ones(12)'; -ones(12) ones(12,12)]
+    obj = -[1;vars]'*W*[1;vars]
+
+    # constraints
+    # expr ≥ 0
+    ineq = Vector{TSSOS.Poly{Float64}}()
+    # expr = 0
+    eq = Vector{TSSOS.Poly{Float64}}()
+
+    # backprojection
+    for (_,q) in enumerate(q_backproj)
+        push!(ineq, -[vars;1]'*[q.H  q.c;  q.c'  q.d]*[vars;1])
+    end
+    # chirality
+    for (_,q) in enumerate(q_front)
+        push!(ineq, -[vars;1]'*[q.H  q.c;  q.c'  q.d]*[vars;1])
+    end
+    # equality (R∈SO(3))
+    for (_,q) in enumerate(q_eqs)
+        push!(eq, [vars;1]'*[q.H  q.c;  q.c'  q.d]*[vars;1])
+    end
+
+    # use TSSOS to generate redundant constraints
+    pop = [obj; ineq; eq]
+    order = order
+    # CS="MD" doesn't make a difference runtime wise
+    opt, sol, data, gap, model = cs_tssos_first(pop, vars, order, numeq=length(eq), TS=false, CS=false, QUIET=silent, solve=false, solution=false, MomentOne=true)
+
+    if silent
+        set_silent(model)
+    end
+
+    ## Modify model
+    # add shape variable `H` (density must match `Ĥ`)
+    @variable(model, H[1:12,1:12] ∈ PSDCone())
+    shape_mat = -[(center'*H*center - 1)  center'*H; H*center H] # with -1
+    shapeΔ = triangle_vec(shape_mat)
+    # update objective to logdet
+    @variable(model, logdet_H)
+    @objective(model, Max, logdet_H)
+    @constraint(model, [logdet_H; 1; triangle_vec(H)] ∈ MOI.LogDetConeTriangle(12))
+    # @objective(model, Max, tr(H))
+
+    # remove the `lower` variable
+    delete(model, model[:lower])
+    unregister(model, :lower)
+    # this alone completely removes `lower`
+
+    # get constraints
+    # they are stored as vector so not easy to modify in place
+    co = constraint_object(model[:con])
+    # remove `:con` from model
+    delete(model, model[:con])
+    unregister(model, :con)
+    # modify constraints with constant terms
+    # get PSD variables
+    psdvars = all_variables(model)[1:length(shapeΔ)]
+    shapeΔ = Dict(zip(psdvars, shapeΔ))
+    # tvW = Dict(zip(psdvars, abs.(triangle_vec(W)))) # all +1
+    for constraint in co.func
+        if constraint.constant == 0
+            @constraint(model, constraint == 0)
+            continue
+        end
+        var = first(keys(constraint.terms))
+        mult = -constraint.constant
+        # remove constant term
+        constraint.constant = 0
+        # add constraint and correct for mult issues
+        @constraint(model, constraint + mult*shapeΔ[var] == 0)
+    end
+
+    ## optimize!
+    set_optimizer(model, solver)
+    optimize!(model)
+
+    # TODO: less sloppy
+    c = [all_constraints(model, t...) for t in list_of_constraint_types(model)]
+    X = dual(c[2][1])
+    # this appears to be a focal point? It is certainly not an extreme point
+    gap = 1
+    if rank(X[1:13,1:13],1e-2) == 1
+        gap = 0
+    end
+
+    # TODO: I actually don't care about SLOW_PROGRESS
+    if !is_solved_and_feasible(model)
+        gap = -1
+        silent || @warn "[bounding_ellipse_higherorder] Returned status $(termination_status(model)). Results may not be lower bound!"
+    end
+
+    return value.(H), gap, termination_status(model)
+end
+
 
 """
 Solving the bounding sphere problem with a direct relaxation.
