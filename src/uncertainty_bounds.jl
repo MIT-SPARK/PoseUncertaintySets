@@ -204,9 +204,9 @@ function bounding_sphere(center, q_front, q_backproj, q_eqs; order=1, silent=fal
 
     # constraints
     # expr ≥ 0
-    ineq = zeros(Polynomial{DynamicPolynomials.Commutative{DynamicPolynomials.CreationOrder}, Graded{LexOrder}, Float64}, 0) 
+    ineq = Vector{TSSOS.Poly{Float64}}()
     # expr = 0
-    eq = zeros(Polynomial{DynamicPolynomials.Commutative{DynamicPolynomials.CreationOrder}, Graded{LexOrder}, Float64}, 0) 
+    eq = Vector{TSSOS.Poly{Float64}}()
 
     # PURSE constraints
     for (i,q) in enumerate(q_backproj)

@@ -23,9 +23,16 @@ bounds_ransag = deserialize(save_path)["bounds"]
 
 
 
-# trans range CDF (note this is 2x the radius)
+# trans range CDF (note this is just the radius)
 filterval = bounds_ransag.status_t .== MOI.OPTIMAL .|| bounds_ransag.status_t .== MOI.ALMOST_OPTIMAL .|| bounds_ransag.status_t .== MOI.SLOW_PROGRESS
 
-p_tcdf = Plots.plot(ylabel="CDF", title="Translation Range")
+p_tcdf = Plots.plot(ylabel="CDF", title="Translation Radii")
 plot_cdf!(p_tcdf, (bounds_ransag.t)[filterval .&& bounds_ransag.t .> 0]; label="RANSAG")
-Plots.plot!(xscale=:log10, xticks=[0.1, 1,100])
+Plots.plot!(xscale=:log10)
+
+
+# ang range CDF
+filterval = bounds_ransag.status_θ .== MOI.OPTIMAL .|| bounds_ransag.status_θ .== MOI.ALMOST_OPTIMAL .|| bounds_ransag.status_θ .== MOI.SLOW_PROGRESS
+
+p_acdf = Plots.plot(ylabel="CDF", title="Angular Bounds")
+plot_cdf!(p_acdf, (bounds_ransag.θ)[filterval .&& bounds_ransag.θ .> 0]; label="RANSAG")

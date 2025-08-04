@@ -141,7 +141,7 @@ function ransagpose(y, r, b, camK; T=1000)
         for _ = 1:floor(Int,T/20)
             idxs = sample(1:N, 3, replace=false)
             kpts = y[:,idxs]
-            # run p3p
+            # run p3p (TODO: should be pnp!)
             R_p3p, t_p3p = p3p(kpts, b[:,idxs], camK)
             for i = axes(t_p3p,2)
                 push!(S_R, R_p3p[:,:,i])
@@ -261,27 +261,35 @@ Returns pose estimate, optimization status, solution data, JuMP model
 - `upperb=10`: upper bound the margins
 - `silent=false`: should we print things?
 """
-function maxmarginpose(y, r, b, camK; lowerb=-10, upperb=10, silent=false)
+function maxmarginpose(y, r, b, camK; kwargs...)
     q_front, q_backproj = uncertaintyset_l2(y, r, b, camK)
     q_eqs = SO3_constraints()
 
-    return maxmarginpose(q_front, q_backproj, q_eqs; lowerb=lowerb, upperb=upperb, silent=silent)
+    return maxmarginpose(q_front, q_backproj, q_eqs; kwargs...)
 end
 
 function maxmarginpose(prob; kwargs...)
-    return maxmarginpose(prob.y, prob.r, prob.b, prob.camK; kwargs...)
+    # if prob.p == 2
+    q_front, q_backproj = uncertaintyset_l2(prob.y, prob.r, prob.b, prob.camK)
+    q_eqs = SO3_constraints()
+    # else
+    #     q_front, q_backproj = uncertaintyset_linf_q(prob.y, prob.r, prob.b, prob.camK)
+    #     q_eqs = q_constraints()
+    # end
+    return maxmarginpose(q_front, q_backproj, q_eqs; kwargs...)
 end
 
-function maxmarginpose(q_front, q_backproj, q_eqs; lowerb=-10, upperb=10, silent=false)
-    N = length(q_backproj)
+function maxmarginpose(q_front, q_backproj, q_eqs; silent=true)
+    N = length(q_front)
+    dim = length(q_eqs) == 1 ? 8 : 13
 
     model = Model(Clarabel.Optimizer)
     if silent
         set_silent(model)
     end
     @variable(model, margin[1:N])
-    @variable(model, X[1:13,1:13] ∈ PSDCone()) # rank 1 of [r, t, 1]
-    @constraint(model, X[13,13]==1.)
+    @variable(model, X[1:dim,1:dim] ∈ PSDCone()) # rank 1 of [r, t, 1]
+    @constraint(model, X[dim,dim]==1.)
 
     # objective
     obj = sum(margin)
@@ -300,16 +308,16 @@ function maxmarginpose(q_front, q_backproj, q_eqs; lowerb=-10, upperb=10, silent
     end
     for (i,q) in enumerate(q_backproj)
         Q = Symmetric([q.H  q.c;  q.c'  q.d])
-        @constraint(model, tr(Q*X) <= -margin[i])
+        if dim == 13
+            @constraint(model, tr(Q*X) <= -margin[i])
+        else
+            @constraint(model, tr(Q*X) <= -margin[floor(Int,(i-1)/4)+1])
+        end
     end
     for (i,q) in enumerate(q_eqs)
         Q = Symmetric([q.H  q.c;  q.c'  q.d])
         @constraint(model,  tr(Q*X) == 0.)
     end
-    # if !isnothing(lowerb)
-    #     @constraint(model, margin .>= lowerb)
-    # end
-    # @constraint(model, margin .<= upperb)
 
     # solve
     optimize!(model)
@@ -346,8 +354,6 @@ function maxmarginpose(q_front, q_backproj, q_eqs; lowerb=-10, upperb=10, silent
             @warn "X not rank 1: λ₁ = $(evs[end]), λ₂ = $(evs[end-1])"
         end
     end
-
-    # Main.@infiltrate
 
     return R_est, t_est, tight, termination_status(model)
 end
@@ -600,4 +606,58 @@ end
 
 function conformalpose_local(prob; silent=false)
     return conformalpose_local(prob.y, prob.r, prob.b, prob.camK; p=prob.p, silent=silent)
+end
+
+"""
+Sample from the pose uncertainty set.
+
+Offer 2 methods:
+1. RANSAG (fails when set is very large)
+2. Griding + max margin (more robust but slower)
+"""
+function sample_set(prob; method="ransag", Ht=nothing, T=1000)
+    y = prob.y
+    r = prob.r
+    b = prob.b
+    camK = prob.camK
+    N = size(r,1)
+
+    # set of feasible poses found
+    S_R = []
+    S_t = []
+    if method == "ransag"
+        # search for T iterations
+        for _ = 1:T
+            idxs = sample(1:N, 3, replace=false)
+
+            # perturb from center by (uniformly) random magnitude in random direction
+            r_selected = r[idxs] .* rand(3) # random magnitude
+            dir = normalize.(eachcol(randn(2,3))) # random direction
+            kpts = y[1:2,idxs] + reduce(hcat, r_selected .* dir)
+            kpts = [kpts; ones(1,3)]
+
+            # run p3p
+            R_p3p, t_p3p = p3p(kpts, b[:,idxs], camK)
+
+            # save all which are in PURSE
+            for i = axes(t_p3p,2)
+                R = R_p3p[:,:,i]
+                t = t_p3p[:,i]
+                y_p3p = camK*(R*b .+ t)
+                y_p3p = reduce(hcat, eachcol(y_p3p) ./ y_p3p[3,:])
+
+                # just check backproj
+                if sum(norm.(eachcol(y_p3p - y), prob.p) .<= r) == N
+                    push!(S_R, R)
+                    push!(S_t, t)
+                end
+            end
+        end
+    elseif method == "grid"
+        # convert ellipse into bbox
+        # convert bbox into grid
+        # also check outside ellipse (and warn if failure!)
+        error("Not implemented yet")
+    end
+    return S_R, S_t
 end
