@@ -565,6 +565,10 @@ function angular_sphere_axang_quat(center, H; silent=false, order=2)
     @polyvar c
     @polyvar sω[1:3]
     vars = [c;sω]
+    # this is just defining a quat
+    # we could instead do q - Identity
+    # and back out the premultiplication by q̄ later
+    # / in the objective. 
 
     # objective
     obj = c
