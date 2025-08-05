@@ -40,8 +40,9 @@ include("datasets/workflows.jl")
 export l2_workflow, linfR_workflow, linfq_workflow
 
 include("visualization/plot_3d.jl")
-export ellipse_to_surf, plot_bbox!, plot_cdf!
+export ellipse_to_surf, plot_bbox!, plot_cdf!, ellipse_to_surf_nd
 include("visualization/image_tools.jl")
 export plot_image, plot_keypoints!, plot_3d_keypoints!, plot_mask!, plot_outline!
+export get_lazy_mask, get_mask
 
 end # module PoseUncertaintySets

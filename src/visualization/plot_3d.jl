@@ -33,6 +33,29 @@ end
 
 
 """
+    ellipse_to_surf_nd(A, c, num_pts=1e4)
+
+Generate a surface (list of points) from an ellipse matrix `A` centered at `c`.
+Works in higher dimensions by sampling
+"""
+function ellipse_to_surf_nd(A, c, num_pts=1e4)
+    # Eigenvalue decomposition of A
+    λ, V = eigen(Symmetric(A))
+    n = size(A,1)
+        
+    # Sample points on the unit sphere
+    sphere = normalize.(eachcol(randn(n,Int(num_pts))))
+    sphere = reduce(hcat, sphere) # [n x num_pts]
+
+    # Transform sphere to ellipsoid
+    axes_lengths = 1. ./ sqrt.(λ)
+    surf = V * diagm(axes_lengths) * sphere
+    surf .+= c
+    return surf
+end
+
+
+"""
 Plot bounding box aligned with `H_t`
 """
 function plot_bbox!(plt,center, H_t, bounds; kwargs...)

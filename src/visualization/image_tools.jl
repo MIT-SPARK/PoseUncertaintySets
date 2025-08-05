@@ -58,25 +58,15 @@ function plot_mask!(plt, img, cadpath, object_id, pose, camK; lazy=true)
     t = pose[2]
     if lazy
         # just project vertices
-        img2 = Images.RGBA.(copy(img)).*0
-        for coord in GeometryBasics.coordinates(cad_m)
-            pixel = camK*(R*coord + t)
-            pixel ./= pixel[3]
-            coords = [Int(round(pixel[1])), Int(round(pixel[2]))]
-            coords[1] = clamp(coords[1], 1, size(img)[2])
-            coords[2] = clamp(coords[2], 1, size(img)[1])
-            img2[coords[2], coords[1]] = Images.RGBA(0,1,1, 0.5)
-        end
-        Plots.plot!(img2, grid=false, axis=false)
-        return plt
+        mask = get_lazy_mask(img, R, t, cad_m, camK)
     else
         # dense segmentation mask
         mask = get_mask(img, R, t, cad_m, camK)
-        img_mask = Images.RGBA.(copy(img)).*0
-        img_mask[mask] .= Images.RGBA(0,1,1, 0.5)
-        Plots.plot!(plt, img_mask)
-        return plt, mask
     end
+    img_mask = Images.RGBA.(copy(img)).*0
+    img_mask[mask] .= Images.RGBA(0,1,1, 0.5)
+    Plots.plot!(img_mask, grid=false, axis=false)
+    return plt, mask
 end
 
 """
@@ -99,6 +89,23 @@ function plot_outline!(plt, img, seg)
     Plots.plot!(plt, img_new)
     return plt
 end
+
+"""
+Get lazy mask by projecting vertices of object
+"""
+function get_lazy_mask(img, R, t, cad_m, camK)
+    mask = zeros(Bool, size(img))
+    for coord in GeometryBasics.coordinates(cad_m)
+        pixel = camK*(R*coord + t)
+        pixel ./= pixel[3]
+        coords = [Int(round(pixel[1])), Int(round(pixel[2]))]
+        coords[1] = clamp(coords[1], 1, size(img)[2])
+        coords[2] = clamp(coords[2], 1, size(img)[1])
+        mask[coords[2], coords[1]] = true
+    end
+    return mask
+end
+
 
 """
 Get segmentation mask by tracing object pose
