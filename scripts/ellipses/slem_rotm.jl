@@ -16,8 +16,8 @@ using PoseUncertaintySets
 # parameters
 dataset = "lmo"
 α = 0.1
-p = Inf
-order=1
+p = 2#Inf
+order=2
 pose = "pnp2"
 
 object_ids = [1,5,6,9,8,10,11,12]

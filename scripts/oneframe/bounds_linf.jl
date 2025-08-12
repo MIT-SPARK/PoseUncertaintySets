@@ -20,10 +20,10 @@ prob2 = get_problem(keypoint_data2, object_id, frame)
 probi = get_problem(keypoint_datai, object_id, frame)
 
 # pose estimate
-# R2, t2, gap2, status2 = gaussianpose(prob2; silent=true, order=2)
-# Ri, ti, gapi, statusi = gaussianpose(probi; silent=true, order=2)
-R2, t2, gap2, status2 = maxmarginpose(prob2; silent=true)
-Ri, ti, gapi, statusi = maxmarginpose(probi; silent=true)
+R2, t2, gap2, status2 = gaussianpose(prob2; silent=true, order=2)
+Ri, ti, gapi, statusi = gaussianpose(probi; silent=true, order=2)
+# R2, t2, gap2, status2 = maxmarginpose(prob2; silent=true)
+# Ri, ti, gapi, statusi = maxmarginpose(probi; silent=true)
 
 # bounding SPHERE
 # center2 = [vec(R2); t2]

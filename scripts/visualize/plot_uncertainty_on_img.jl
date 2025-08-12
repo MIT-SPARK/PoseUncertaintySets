@@ -5,6 +5,7 @@
 
 import Plots
 import FileIO, GeometryBasics, Images
+using Printf
 using SimpleRotations
 using PoseUncertaintySets
 

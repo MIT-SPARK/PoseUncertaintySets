@@ -32,7 +32,7 @@ end
 """
 Load keypoints and calibrate
 """
-function load_keypoint_data(cal_fn=calibrate_lp; p=2, α=0.1, path_kpts3d="../data/kpts3d.json", 
+function load_keypoint_data(cal_fn=calibrate_lp; p=2, α=0.1, path_kpts3d="../data/kpts3d.json", remove_cal=false,
         parent_cal="../data/bop/lmo/test_bop19/000002", parent_test="../data/bop/lmo/test_all/000002",
         detections_cal_path="../data/detections_lmo_cal.json", detections_test_path="../data/detections_lmo_test.json")
     
@@ -44,6 +44,13 @@ function load_keypoint_data(cal_fn=calibrate_lp; p=2, α=0.1, path_kpts3d="../da
 
     kpts_cal = load_raw_keypoints(detections_cal_path)
     kpts_test = load_raw_keypoints(detections_test_path)
+
+    if remove_cal
+        for key in keys(gt_cal)
+            delete!(gt_test, key)
+            delete!(kpts_test, key)
+        end
+    end
 
     # calibrate!
     radii, scores, ns = cal_fn(kpts_cal, gt_cal, camK, kpts_test, kpt_lib, p, α)
@@ -58,8 +65,13 @@ function load_keypoint_data(cal_fn, dataset; p=2, α=0.1)
     parent_test = "../data/$dataset/test/000002"
     detections_cal_path = "../data/$dataset/detections_cal.json"
     detections_test_path = "../data/$dataset/detections_test.json"
+
+    remove_cal = false
+    if dataset == "lmo"
+        remove_cal = true
+    end
     
-    return load_keypoint_data(cal_fn; p=p, α=α, path_kpts3d=path_kpts3d,
+    return load_keypoint_data(cal_fn; p=p, α=α, path_kpts3d=path_kpts3d, remove_cal=remove_cal,
             parent_cal=parent_cal, parent_test=parent_test, 
             detections_cal_path=detections_cal_path, detections_test_path=detections_test_path)
 end
