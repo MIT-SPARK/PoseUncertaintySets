@@ -139,13 +139,17 @@ function ransagpose(y, r, b, camK; T=1000)
     if length(S_R) == 0
         purse_empty = true
         for _ = 1:floor(Int,T/20)
-            idxs = sample(1:N, 3, replace=false)
-            kpts = y[:,idxs]
-            # run p3p (TODO: should be pnp!)
-            R_p3p, t_p3p = p3p(kpts, b[:,idxs], camK)
-            for i = axes(t_p3p,2)
-                push!(S_R, R_p3p[:,:,i])
-                push!(S_t, t_p3p[:,i])
+            # perturb from center by (uniformly) random magnitude in random direction
+            r_selected = r .* rand(N) # random magnitude
+            dir = normalize.(eachcol(randn(2,N))) # random direction
+            kpts = y[1:2,:] + reduce(hcat, r_selected .* dir)
+            kpts = [kpts; ones(1,N)]
+            # run pnp
+            R_pnp, t_pnp = gaussianpose(kpts, r, b, camK)
+            # R_p3p, t_p3p = p3p(kpts, b[:,idxs], camK)
+            for i = axes(t_pnp,2)
+                push!(S_R, R_pnp[:,:,i])
+                push!(S_t, t_pnp[:,i])
             end
         end
     end
