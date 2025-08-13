@@ -10,7 +10,7 @@ using DataFrames, TexTables
 using PoseUncertaintySets
 
 # parameters
-dataset = "lmo"
+dataset = "ycbv"
 α = 0.1
 p = 2
 

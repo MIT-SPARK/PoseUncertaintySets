@@ -13,7 +13,7 @@ dataset = "lmo"
 α = 0.1
 p = 2 # cannot do Inf
 sdporder = 1 # GRCC compares against order 1, RANSAG uses order 2!
-pose = "ransag"
+pose = "pnp2" # original paper uses ransag
 
 object_ids = [1,5,6,9,8,11,12]
 cadpath = "../data/$dataset/models_eval/"

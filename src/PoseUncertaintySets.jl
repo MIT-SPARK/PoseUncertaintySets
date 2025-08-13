@@ -18,6 +18,9 @@ import Images, Plots
 using SimpleRotations
 using P3P
 
+# make dictionary callable
+(d::Dict)(k) = d[k] 
+
 # Files
 include("load_data.jl")
 export get_problem, calibrate_lp, load_keypoint_data

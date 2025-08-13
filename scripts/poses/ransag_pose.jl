@@ -12,7 +12,7 @@ using PoseUncertaintySets
 # parameters
 dataset = "lmo"
 α = 0.1
-p = Inf
+p = 2
 
 object_ids = [1,5,6,9,8,10,11,12]
 cadpath = "../data/$dataset/models_eval/"

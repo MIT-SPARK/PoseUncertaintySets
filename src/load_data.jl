@@ -32,7 +32,7 @@ end
 """
 Load keypoints and calibrate
 """
-function load_keypoint_data(cal_fn=calibrate_lp; p=2, α=0.1, path_kpts3d="../data/kpts3d.json", remove_cal=false,
+function load_keypoint_data_lmo(cal_fn=calibrate_lp; p=2, α=0.1, path_kpts3d="../data/kpts3d.json", 
         parent_cal="../data/bop/lmo/test_bop19/000002", parent_test="../data/bop/lmo/test_all/000002",
         detections_cal_path="../data/detections_lmo_cal.json", detections_test_path="../data/detections_lmo_test.json")
     
@@ -45,11 +45,9 @@ function load_keypoint_data(cal_fn=calibrate_lp; p=2, α=0.1, path_kpts3d="../da
     kpts_cal = load_raw_keypoints(detections_cal_path)
     kpts_test = load_raw_keypoints(detections_test_path)
 
-    if remove_cal
-        for key in keys(gt_cal)
-            delete!(gt_test, key)
-            delete!(kpts_test, key)
-        end
+    for key in keys(gt_cal)
+        delete!(gt_test, key)
+        delete!(kpts_test, key)
     end
 
     # calibrate!
@@ -59,21 +57,66 @@ function load_keypoint_data(cal_fn=calibrate_lp; p=2, α=0.1, path_kpts3d="../da
     return data, gt_test
 end
 
+function load_keypoint_data_ycbv(cal_fn=calibrate_lp; p=2, α=0.1, path_kpts3d="", 
+        cal_n=150, parent_test="", detections_test_path="")
+    
+    kpt_lib = load_kpt_lib(path_kpts3d, "ycbv")
+
+    camK = load_K(parent_test*"/"*readdir(parent_test)[1])
+
+    gt_test = Dict()
+    kpts_test = Dict()
+    for folder in readdir(parent_test)
+        gt_test_f = load_gt(parent_test*"/$folder")
+        foldernum = parse(Int, folder)
+        gt_test_f = Dict(foldernum*10000 + k => v for (k,v) in pairs(gt_test_f))
+        merge!(gt_test, gt_test_f)
+
+        kpts_test_f = load_raw_keypoints(detections_test_path)
+        kpts_test_f = Dict(foldernum*10000 + k => v for (k,v) in pairs(kpts_test_f))
+        merge!(kpts_test, kpts_test_f)
+    end
+
+    # select random frames to become cal
+    frames_cal = sample(collect(keys(gt_test)), cal_n; replace=false)
+    gt_cal = Dict(frames_cal .=> gt_test.(frames_cal))
+    kpts_cal = Dict(frames_cal .=> kpts_test.(frames_cal))
+
+    # TODO: remove from kpts_test the objs that aren't in gt_cal.
+
+    # remove form 
+    for key in keys(gt_cal)
+        delete!(gt_test, key)
+        delete!(kpts_test, key)
+    end
+
+    # calibrate!
+    radii, scores, ns = cal_fn(kpts_cal, gt_cal, camK, kpts_test, kpt_lib, p, α)
+
+    data = Dict("K"=>camK, "r"=>radii, "y"=>kpts_test, "b"=>kpt_lib, "p"=>p)
+    return data, gt_test
+end
+
+"""
+Load keypoints for one dataset
+"""
 function load_keypoint_data(cal_fn, dataset; p=2, α=0.1)
     path_kpts3d = "../data/$dataset/kpts3d.json"
-    parent_cal = "../data/$dataset/cal/000002"
-    parent_test = "../data/$dataset/test/000002"
-    detections_cal_path = "../data/$dataset/detections_cal.json"
     detections_test_path = "../data/$dataset/detections_test.json"
 
-    remove_cal = false
     if dataset == "lmo"
-        remove_cal = true
+        parent_test = "../data/$dataset/test/000002"
+        parent_cal = "../data/$dataset/cal/000002"
+        detections_cal_path = "../data/$dataset/detections_cal.json"
+        return load_keypoint_data_lmo(cal_fn; p=p, α=α, path_kpts3d=path_kpts3d,
+                parent_cal=parent_cal, parent_test=parent_test, 
+                detections_cal_path=detections_cal_path, detections_test_path=detections_test_path)
+    elseif dataset == "ycbv"
+        parent_test = "../data/$dataset/test"
+        cal_n = 150
+        return load_keypoint_data_ycbv(cal_fn; p=p, α=α, path_kpts3d=path_kpts3d,
+            parent_test=parent_test, cal_n=cal_n, detections_test_path=detections_test_path)
     end
-    
-    return load_keypoint_data(cal_fn; p=p, α=α, path_kpts3d=path_kpts3d, remove_cal=remove_cal,
-            parent_cal=parent_cal, parent_test=parent_test, 
-            detections_cal_path=detections_cal_path, detections_test_path=detections_test_path)
 end
 
 
@@ -87,7 +130,9 @@ function calibrate_lp(kpts_cal, gt_cal, camK, kpts_test, kpt_lib, p=2, α=0.1; c
 
     for (img_id, kpts_cal_all) in kpts_cal
         for (obj, kpts_cal_obj) in kpts_cal_all
-
+            if !(obj in keys(gt_cal[img_id]))
+                continue
+            end
             # calc gt keypoints
             R = gt_cal[img_id][obj][1]
             t = gt_cal[img_id][obj][2]

@@ -14,12 +14,16 @@ To run experiments you will need a data folder. We show the default file structu
 ├── data
 │   ├── lmo
 │   │   ├── models_eval
-│   │   ├── cal
-│   │   ├── test
+│   │   ├── cal (BOP subset)
+│   │   ├── test (all images)
 │   │   ├── kpts3d.json
 │   │   ├── detections_cal.json
 │   │   ├── detections_test.json
 │   ├── ycbv
+│   │   ├── models_eval
+│   │   ├── test (BOP subset)
+│   │   ├── kpts3d.json
+│   │   ├── detections_test.json
 │   ├── cast
 ├── PoseUncertaintySets
 ```
@@ -45,11 +49,9 @@ We assume you are in the home directory of this repository and you've been throu
 
 <summary><b>Keypoint Detection</b></summary>
 
+For BOP keypoints, clone the [bop-keypoints repo](https://github.com/lopenguin/bop-keypoints) and follow the instructions in the README to setup and run keypoint detection on your dataset of choice. You'll need to run it on lmo and ycbv for the full test split. For lmo only, you need to run on the test and cal splits.
 
-
-```shell
-
-```
+The authors of the drone dataset do not release their keypoint detector.
 
 </details>
 
@@ -81,8 +83,21 @@ The following options are available for pose estimation:
 
 
 ```shell
-
+# S-Lemma (first order / rotation matrix)
+julia --project scripts/ellipses/slem_rotm.jl 
+# S-Lemma (second order / quaternion)
+julia --project scripts/ellipses/slem_quat.jl 
+# RANSAG (first order, can do higher order)
+julia --project scripts/ellipses/ransag_bounds.jl 
+# produce the table
+julia --project scripts/ellipses/summarize.jl 
 ```
+The following options are available for pose estimation:
+- `dataset ∈ {"lmo", "ycbv", "drone"}`: dataset to use
+- `p ∈ {2,Inf}`: p-norm uncertainty set (only `Inf` for quat)
+- `α ∈ (0, 1)`: conformal confidence
+- `order ∈ {1,2,...}`: relaxation order (only `2+` for quat)
+- `pose ∈ {"ransag", "pnp1", "pnp2", "maxmargin"}`: source of pose estimate / center
 
 </details>
 
@@ -114,6 +129,8 @@ The following options are available for pose estimation:
 </details>
 
 
+<details closed>
+
 <summary><b>Visualizations</b></summary>
 
 
@@ -127,6 +144,7 @@ The following options are available for pose estimation:
 ## References
 - RANSAG
 - GRCC?
+- BOP-keypoints
 - LM-O
 - YCB-V
 - CAST
