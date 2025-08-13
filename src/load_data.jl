@@ -103,7 +103,7 @@ function load_keypoint_data_cast(cal_fn, frames_cal, detections_path; p=2, α=0.
     gt_test = Dict()
     for (i,d) in enumerate(dets)
         kpts_test[i] = Dict(1=>convert.(Float64,reduce(hcat,d["est_pixel_keypoints"])))
-        T = convert.(Float64,reduce(hcat,d["gt_teaser_pose"]))
+        T = convert.(Float64,reduce(hcat,d["gt_teaser_pose"]))'
         gt_test[i] = Dict(1=>(T[1:3,1:3], T[1:3,4]/1000.))
     end
 

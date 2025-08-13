@@ -23,15 +23,24 @@ object_ids = [1,5,6,9,8,11,12] # omit 10 (eggbox)
 # dataset = "cast"
 # object_ids = [1]
 
+compute_ellipse1 = true
+compute_ellipse2 = !true
+
 posepath = "../data/$dataset/pose_pnp2_$(round(Int,α*100))_$(string(p)).dat"
 ellipsepath1 = "../data/$dataset/ellipse_slem_rotm_o1_$(round(Int,α*100))_$(string(p)).dat"
 ellipsepath2 = "../data/$dataset/ellipse_slem_quat_o2_$(round(Int,α*100))_$(string(p)).dat"
 
 # load data
 keypoint_data, gt = load_keypoint_data(calibrate_lp, dataset; p=p, α=α)
-poses = deserialize(posepath)["solns"]
-ellipses1 = deserialize(ellipsepath1)["ellipses"]
-ellipses2 = deserialize(ellipsepath2)["ellipses"]
+if compute_ellipse1 || compute_ellipse2
+    poses = deserialize(posepath)["solns"]
+end
+if compute_ellipse1
+    ellipses1 = deserialize(ellipsepath1)["ellipses"]
+end
+if compute_ellipse2
+    ellipses2 = deserialize(ellipsepath2)["ellipses"]
+end
 
 coverage = DataFrame()
 for object_id in object_ids
@@ -69,18 +78,29 @@ for object_id in object_ids
         end
 
         ## ellipsoid coverage
-        if !(frame in keys(poses[object_id][1]))
-            continue
+        if compute_ellipse1
+            if !(frame in keys(poses[object_id][1]))
+                continue
+            end
+            center = [vec(poses[object_id][1][frame]); poses[object_id][2][frame]]
+            H = ellipses1[object_id][frame]
+            x = [vec(R_gt); t_gt]
+            ellipses_cov1[frame] = (x - center)'*H*(x - center) <= 1
+        else
+            ellipses_cov1[frame] = NaN
         end
-        center = [vec(poses[object_id][1][frame]); poses[object_id][2][frame]]
-        H = ellipses1[object_id][frame]
-        x = [vec(R_gt); t_gt]
-        ellipses_cov1[frame] = (x - center)'*H*(x - center) <= 1
 
-        center = [rotm2quat(poses[object_id][1][frame]); poses[object_id][2][frame]]
-        H = ellipses2[object_id][frame]
-        x = [rotm2quat(R_gt); t_gt]
-        ellipses_cov2[frame] = (x - center)'*H*(x - center) <= 1
+        if compute_ellipse2
+            if !(frame in keys(poses[object_id][1]))
+                continue
+            end
+            center = [rotm2quat(poses[object_id][1][frame]); poses[object_id][2][frame]]
+            H = ellipses2[object_id][frame]
+            x = [rotm2quat(R_gt); t_gt]
+            ellipses_cov2[frame] = (x - center)'*H*(x - center) <= 1
+        else
+            ellipses_cov2[frame] = NaN
+        end
     end
 
     frames = collect(keys(keypoints_covered))
