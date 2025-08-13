@@ -21,7 +21,7 @@ To run experiments you will need a data folder. We show the default file structu
 │   │   ├── detections_test.json
 │   ├── ycbv
 │   │   ├── models_eval
-│   │   ├── cal (BOP train pbr synthetic)
+│   │   ├── cal (freshly generated synthetic data)
 │   │   ├── test (BOP subset)
 │   │   ├── kpts3d.json
 │   │   ├── detections_test.json
