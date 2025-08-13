@@ -11,10 +11,12 @@ using PoseUncertaintySets
 
 # parameters
 dataset = "lmo"
+object_ids = [1,5,6,9,8,10,11,12]
+# dataset = "ycbv"
+# object_ids = 1:21
 α = 0.1
 p = Inf
 
-object_ids = [1,5,6,9,8,10,11,12]
 cadpath = "../data/$dataset/models_eval/"
 savepath = "../data/$dataset/pose_pnp2_$(round(Int,α*100))_$(string(p)).dat"
 

@@ -17,7 +17,7 @@ Run pose estimation using `method` on all frames given `keypoint_data` and `obje
 function dataset_pose_est(keypoint_data, object_id, method; kwargs...)
     # setup
     camK = keypoint_data["K"]
-    num_frames = length(keys(keypoint_data["r"]))
+    num_frames = sum([object_id in keys(keypoint_data["r"][frame]) for frame in keys(keypoint_data["r"])])
 
     Rs = Dict{Int, Any}()
     ts = Dict{Int, Any}()

@@ -10,11 +10,15 @@ using DataFrames, TexTables
 using PoseUncertaintySets
 
 # parameters
-dataset = "lmo"
+# dataset = "lmo"
+# object_ids = [1,5,6,9,8,10,11,12]
+# dataset = "ycbv"
+# object_ids = 1:21
+dataset = "cast"
+object_ids = [1]
 α = 0.1
 p = 2
 
-object_ids = [1,5,6,9,8,10,11,12]
 cadpath = "../data/$dataset/models_eval/"
 savepath = "../data/$dataset/pose_maxmargin_$(round(Int,α*100))_$(string(p)).dat"
 

@@ -8,13 +8,14 @@ using PoseUncertaintySets
 using SimpleRotations
 
 # settings used for figure
+dataset = "lmo"
 object_id = 9
 frame = 352
-α = 0.1
-p = 2#Inf
+α = 0.4
+p = Inf
 
 # load data and calibrate
-keypoint_data, gt = load_keypoint_data(calibrate_lp, p=p, α=α)
+keypoint_data, gt = load_keypoint_data(calibrate_lp, dataset, p=p, α=α)
 prob = get_problem(keypoint_data, object_id, frame)
 
 # get pose estimate and ellipse
@@ -28,9 +29,9 @@ Pθ = zeros(3,9)
 Pθ[1,6] = 1; Pθ[1,8] = -1; Pθ[2,7] = 1; Pθ[2,3] = -1; Pθ[3,2] = 1; Pθ[3,4] = -1
 Hθ_o1 = 4*inv(Pθ*pinv(Hr_o1)*Pθ')
 # R ellipse order 2
-H_o2, gap_o2, status_o2 = bounding_ellipse([vec(R_est); t_est], prob; silent=false, order=2)
-Hr_o2 = kron(R_est',diagm(ones(3)))'*inv(P1*pinv(H_o2)*P1')*kron(R_est',diagm(ones(3)))
-Hθ_o2 = 4*inv(Pθ*pinv(Hr_o2)*Pθ')
+# H_o2, gap_o2, status_o2 = bounding_ellipse([vec(R_est); t_est], prob; silent=false, order=2)
+# Hr_o2 = kron(R_est',diagm(ones(3)))'*inv(P1*pinv(H_o2)*P1')*kron(R_est',diagm(ones(3)))
+# Hθ_o2 = 4*inv(Pθ*pinv(Hr_o2)*Pθ')
 # q ellipse order 2
 H_o2, gap_o2, status_o2 = bounding_ellipse_quat([q_est; t_est], prob; silent=true, order=2)
 P2 = [diagm(ones(4)) zeros(4,3)]

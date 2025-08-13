@@ -13,7 +13,7 @@ using SimpleRotations
 using PoseUncertaintySets
 
 # parameters
-α = 0.1
+α = 0.4
 p = Inf
 
 dataset = "lmo"
@@ -93,6 +93,7 @@ cov_p = mean(coverage[:,"p"])
 cov_ellipsoid1 = mean(coverage[:,"ellipsoid1"])
 cov_ellipsoid2 = mean(coverage[:,"ellipsoid2"])
 
+println("Coverage report for $dataset (α=$α)")
 @printf "Keypoint coverage: %.2f%%\n" cov_keypoint*100
 @printf "Pose set coverage: %.2f%%\n" cov_p*100
 @printf "Ellipse1 coverage: %.2f%%\n" cov_ellipsoid1*100
