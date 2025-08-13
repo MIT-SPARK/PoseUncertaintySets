@@ -10,12 +10,16 @@ using PoseUncertaintySets
 
 # parameters
 dataset = "lmo"
+object_ids = [1,5,6,9,8,11,12]
+# dataset = "ycbv"
+# object_ids = 1:21
+# dataset = "cast"
+# object_ids = [1]
 α = 0.1
 p = 2 # cannot do Inf
 sdporder = 1 # GRCC compares against order 1, RANSAG uses order 2!
 pose = "pnp2" # original paper uses ransag
 
-object_ids = [1,5,6,9,8,11,12]
 cadpath = "../data/$dataset/models_eval/"
 posepath = "../data/$dataset/pose_$(pose)_$(round(Int,α*100))_$(string(p)).dat"
 savepath = "../data/$dataset/bounds_ransag_o$(sdporder)_$(round(Int,α*100))_$(string(p)).dat"

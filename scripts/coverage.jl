@@ -13,11 +13,15 @@ using SimpleRotations
 using PoseUncertaintySets
 
 # parameters
-α = 0.4
+α = 0.1
 p = Inf
 
 dataset = "lmo"
 object_ids = [1,5,6,9,8,11,12] # omit 10 (eggbox)
+# dataset = "ycbv"
+# object_ids = 1:21
+# dataset = "cast"
+# object_ids = [1]
 
 posepath = "../data/$dataset/pose_pnp2_$(round(Int,α*100))_$(string(p)).dat"
 ellipsepath1 = "../data/$dataset/ellipse_slem_rotm_o1_$(round(Int,α*100))_$(string(p)).dat"
