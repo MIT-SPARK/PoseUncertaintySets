@@ -6,8 +6,8 @@
 import Plots
 using PoseUncertaintySets
 
-image_parent = "../data/bop/lmo/test_all/000002/rgb"
-cadpath = "../data/bop/lmo/models_eval/"
+dataset = "lmo"
+image_parent = "../data/$dataset/test"
 
 # settings used for figure
 object_id = 9
@@ -17,7 +17,7 @@ p = Inf
 plot_gt = false
 
 # load data and calibrate
-keypoint_data, gt = load_keypoint_data(calibrate_lp, p=p, α=α)
+keypoint_data, gt = load_keypoint_data(calibrate_lp, dataset; p=p, α=α)
 prob = get_problem(keypoint_data, object_id, frame)
 
 # plot

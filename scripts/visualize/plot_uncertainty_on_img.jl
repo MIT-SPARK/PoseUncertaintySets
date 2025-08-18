@@ -6,11 +6,12 @@
 import Plots
 import FileIO, GeometryBasics, Images
 using Printf
+using LinearAlgebra
 using SimpleRotations
 using PoseUncertaintySets
 
-image_parent = "../data/bop/lmo/test_all/000002/rgb"
-cadpath = "../data/bop/lmo/models_eval/"
+image_parent = "../data/lmo/test"
+cadpath = "../data/lmo/models_eval/"
 # load CAD
 cad = FileIO.load(cadpath*(@sprintf "obj_%06d.ply" object_id))
 cad_m = GeometryBasics.Mesh(GeometryBasics.coordinates(cad)/1000, cad.faces)

@@ -9,9 +9,9 @@ using DataFrames, TexTables
 using PoseUncertaintySets
 
 # parameters
-dataset = "lmo"
+dataset = "ycbv"
 α = 0.1
-p = Inf
+p = 2#Inf
 
 
 # load pose data

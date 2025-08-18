@@ -2,8 +2,17 @@
 # Lorenzo Shaikewitz, 6/13/2025
 
 
-function plot_image(parent, frame)
-    img_name = @sprintf "%06d.png" frame
+function plot_image(parent, frame; type="png")
+    if occursin("lmo", parent)
+        parent = parent * "/000002/rgb"
+    elseif occursin("ycbv", parent)
+        folder = frame - (frame % 10000)
+        parent = parent * "/" * (@sprintf "%06d" folder / 10000) * "/rgb"
+        frame -= folder
+    else
+        println("dataset not implemented")
+    end
+    img_name = @sprintf "%06d.%s" frame type
     img = Images.load(parent*"/"*img_name)
 
     plt = Plots.plot(img, axis=false, grid=false, title="Frame $frame")
