@@ -2,17 +2,25 @@
 # Lorenzo Shaikewitz, 6/13/2025
 
 
-function plot_image(parent, frame; type="png")
+function plot_image(parent, frame; type="png", data=nothing)
     if occursin("lmo", parent)
         parent = parent * "/000002/rgb"
+
+        img_name = @sprintf "%06d.%s" frame type
     elseif occursin("ycbv", parent)
         folder = frame - (frame % 10000)
         parent = parent * "/" * (@sprintf "%06d" folder / 10000) * "/rgb"
         frame -= folder
+
+        img_name = @sprintf "%06d.%s" frame type
+    elseif occursin("cast", parent)
+        !isnothing(data) || error("Data cannot be nothing for cast.")
+        img_name = split(data[frame]["rgb_image_filename"],"/")[end]
+        # imgs = sort(filter(x -> startswith(x,"rgb_image"), readdir(parent)), by=x->parse(Int,split(split(x,"_")[end],".")[1]))
+        # img_name = imgs[frame]
     else
         println("dataset not implemented")
     end
-    img_name = @sprintf "%06d.%s" frame type
     img = Images.load(parent*"/"*img_name)
 
     plt = Plots.plot(img, axis=false, grid=false, title="Frame $frame")
@@ -211,4 +219,26 @@ function boundary_map(seg::BitMatrix)
     b[:,end] = seg[:,end] .!= s[:,end];
     b[end,end] = 0;
     return b
+end
+
+"""
+Plot a reference frame on an image
+"""
+function plot_frame!(plt, pose, K; gt=false)
+    R = pose[1]
+    t = pose[2]
+
+    origin = t
+    axes   = [t + 0.1*R[:,i] for i in 1:3]  # x, y, z axes in world
+
+    # project to image
+    project(p) = (K * (p))[1:2] ./ (K * (p))[3]
+    o2d = project(origin)
+    a2d = [project(p) for p in axes]
+
+    colors = [:red, :green, :blue]
+    for (a, c) in zip(a2d, colors)
+        Plots.plot!(plt, [o2d[1], a[1]], [o2d[2], a[2]], color=c, lw=gt ? 2 : 1, legend=false)
+    end
+    return plt
 end

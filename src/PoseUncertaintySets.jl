@@ -46,6 +46,6 @@ include("visualization/plot_3d.jl")
 export ellipse_to_surf, plot_bbox!, plot_cdf!, ellipse_to_surf_nd
 include("visualization/image_tools.jl")
 export plot_image, plot_keypoints!, plot_3d_keypoints!, plot_mask!, plot_outline!
-export get_lazy_mask, get_mask
+export get_lazy_mask, get_mask, plot_frame!
 
 end # module PoseUncertaintySets
