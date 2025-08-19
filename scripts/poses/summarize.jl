@@ -10,6 +10,11 @@ using PoseUncertaintySets
 
 # parameters
 dataset = "lmo"
+object_ids = [1,5,6,9,8,11,12] # omit 10
+# dataset = "ycbv"
+# object_ids =  [1:12;14;15] # omit 13, 16:21
+# dataset = "cast"
+# object_ids = [1]
 α = 0.1
 p = 2#Inf
 
@@ -22,6 +27,10 @@ pose_dict = deserialize(datapath("ransag"))
 solns_r = pose_dict["solns"]; errs_r = pose_dict["errs"]
 # pose_dict = deserialize(datapath("maxmargin"))
 # solns_mm = pose_dict["solns"]; errs_mm = pose_dict["errs"]
+
+# Filter
+errs_g2 = filter(:id => f-> f in object_ids, errs_g2)
+errs_r = filter(:id => f-> f in object_ids, errs_r)
 
 # tightness
 df_g2 = summarize_by(errs_g2, :id, [:gap], stats=("PnP"=> x->100*sum(skipmissing(x).<=1e-3) / length(collect(skipmissing(x)))))

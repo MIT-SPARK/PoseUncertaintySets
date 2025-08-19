@@ -19,7 +19,7 @@ p = Inf
 dataset = "lmo"
 object_ids = [1,5,6,9,8,11,12] # omit 10 (eggbox)
 # dataset = "ycbv"
-# object_ids = 1:21
+# object_ids = [1:12;14;15] # omit 13, 16:21
 # dataset = "cast"
 # object_ids = [1]
 

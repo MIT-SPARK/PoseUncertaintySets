@@ -7,13 +7,13 @@ using DataFrames
 using PoseUncertaintySets
 
 # settings
-dataset = "cast"
-object_id = 1
+dataset = "ycbv"
+object_id = 13
 α = 0.1
 p = 2#Inf
 plot_gt = !false
 plot_pose = true # false to show keypoints
-plot_frame = true
+plot_frame = !true
 
 # load data and calibrate
 image_parent = "../data/$dataset/test"
