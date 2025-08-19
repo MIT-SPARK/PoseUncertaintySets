@@ -35,15 +35,16 @@ S_t = reduce(hcat, S_t)
 Plots.gr()
 # order 1 ellipse
 surf = ellipse_to_surf(Ht_o1, t_est, 100)
-Plots.scatter3d(surf[1,:], surf[2,:], surf[3,:], label="order 1", msw=0.,c=3)
+Plots.scatter3d(surf[1,:], surf[2,:], surf[3,:], label="order 1", msw=0.,c=4)
 # order 2 ellipse
 surf = ellipse_to_surf(Ht_o2, t_est, 100)
-Plots.scatter3d!(surf[1,:], surf[2,:], surf[3,:], label="order 2", msw=0.,c=4)
+Plots.scatter3d!(surf[1,:], surf[2,:], surf[3,:], label="order 2", msw=0.,c=3)
 # samples
-Plots.scatter3d!(eachrow(S_t)..., label="samples", c="black", msw=0.)
+Plots.scatter3d!(eachrow(S_t)..., label="samples", c="royalblue4", msw=0.)
 # center and camera
 Plots.plot!([t_est[1]], [t_est[2]], [t_est[3]], seriestype=:scatter, label="center",c=1, msw=0., ms=2)
-plot_static = Plots.scatter!([0],[0],[0],label="camera",c=2)
+plot_static = Plots.scatter!([0],[0],[0],label="camera",c="grey", xlabel="x",ylabel="y",zlabel="z")
+# Plots.savefig(plot_static, "tellipse_10.svg")
 
 Plots.plotlyjs()
 Plots.plot([t_est[1]], [t_est[2]], [t_est[3]], seriestype=:scatter, label="center")

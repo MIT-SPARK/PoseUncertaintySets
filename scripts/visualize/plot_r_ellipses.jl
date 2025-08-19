@@ -11,7 +11,7 @@ using SimpleRotations
 dataset = "lmo"
 object_id = 9
 frame = 352
-α = 0.4
+α = 0.1
 p = Inf
 
 # load data and calibrate
@@ -28,7 +28,7 @@ Hr_o1 = kron(R_est',diagm(ones(3)))'*inv(P1*pinv(H_o1)*P1')*kron(R_est',diagm(on
 Pθ = zeros(3,9)
 Pθ[1,6] = 1; Pθ[1,8] = -1; Pθ[2,7] = 1; Pθ[2,3] = -1; Pθ[3,2] = 1; Pθ[3,4] = -1
 Hθ_o1 = 4*inv(Pθ*pinv(Hr_o1)*Pθ')
-# R ellipse order 2
+# R ellipse order 2 (this is very slow)
 # H_o2, gap_o2, status_o2 = bounding_ellipse([vec(R_est); t_est], prob; silent=false, order=2)
 # Hr_o2 = kron(R_est',diagm(ones(3)))'*inv(P1*pinv(H_o2)*P1')*kron(R_est',diagm(ones(3)))
 # Hθ_o2 = 4*inv(Pθ*pinv(Hr_o2)*Pθ')
@@ -47,14 +47,31 @@ axangs = rotm2axang.([R*R_est' for R in S_R])
 ωsinθ2 = reduce(hcat,[ω*sin(θ/2) for (ω, θ) in axangs])
 
 ## plot!
+Plots.gr()
+surf = ellipse_to_surf(Hθ_o1, zeros(3), 100)
+Plots.scatter3d(surf[1,:], surf[2,:], surf[3,:], label="order 1", msw=0.,c=2)
+surf = ellipse_to_surf(Hθ_o2, zeros(3), 100)
+Plots.scatter3d!(surf[1,:], surf[2,:], surf[3,:], label="order 2", msw=0.,c=3)
+surf = ellipse_to_surf(diagm(ones(3)), zeros(3), 100)
+Plots.scatter3d!(surf[1,:], surf[2,:], surf[3,:], label="unit", msw=0.,c="red3")
+# samples
+Plots.scatter3d!(eachrow(ωsinθ)..., label="samples", c="royalblue4", msw=0.)
+# origin and limits
+Plots.plot!(camera=(30,15))
+Plots.plot!(xlim=[-1,1],ylim=[-1,1],zlim=[-1,1])
+plot_static = Plots.scatter!([0],[0],[0],label="origin",c="grey",xlabel="\$\\omega_x\\sin(\\theta)\$",ylabel="\$\\omega_y\\sin(\\theta)\$",zlabel="\$\\omega_z\\sin(\\theta)\$")
+# Plots.savefig(plot_static, "rellipse_10.svg")
+
+
+## For interactive
 Plots.plotlyjs()
 Plots.scatter([0],[0],[0],label="center")
 
 # order 1 ellipse
 surf = ellipse_to_surf(Hθ_o1, zeros(3), 100)
 Plots.scatter3d!(surf[1,:], surf[2,:], surf[3,:], label="order 1")
-surf = ellipse_to_surf(diagm(ones(3)), zeros(3), 100)
-Plots.scatter3d!(surf[1,:], surf[2,:], surf[3,:], label="unit")
+# surf = ellipse_to_surf(diagm(ones(3)), zeros(3), 100)
+# Plots.scatter3d!(surf[1,:], surf[2,:], surf[3,:], label="unit")
 surf = ellipse_to_surf(Hθ_o2, zeros(3), 100)
 Plots.scatter3d!(surf[1,:], surf[2,:], surf[3,:], label="order 2")
 # samples
