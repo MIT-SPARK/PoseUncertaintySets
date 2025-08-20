@@ -7,6 +7,7 @@ using Printf
 using JuMP
 using Clarabel, MosekTools
 using SDPLR, Ipopt
+using Dualization
 using GeometryBasics
 using FileIO, MeshIO
 
@@ -34,6 +35,7 @@ include("uncertainty_bounds.jl")
 export bounding_ellipse, bounding_sphere, bounding_ellipse_quat
 include("explicit_bounds.jl")
 export purse_bounds, angular_bounds_rpy, angular_bounds_quat, refine_bbox
+export grcc_bounds
 
 include("datasets/poses.jl")
 export dataset_pose_est, calc_pose_errors, calc_projection_errors

@@ -854,3 +854,299 @@ function refine_bbox(center, H, q_front, q_backproj, q_eqs; p=2, mode=3, order=1
 
     return bounds, gaps, statuses
 end
+
+
+###############
+# GRCC Baseline
+###############
+
+"""
+GRCC bounds
+
+Adapted from https://github.com/Negotch/GRCC-code/blob/main/example_purse.m
+"""
+function grcc_bounds(center, q_front, q_backproj, q_eqs; order=2, silent=false)
+    purse = (q_front, q_backproj, q_eqs)
+
+    # translation
+    P = [zeros(3,9)  diagm(ones(3))]
+    Q = diagm(ones(3))
+    upper_bound = modified_purse_lass_sedmi(purse, P, Q, order; silent=silent)
+    translation_rad_cheb = upper_bound
+
+    # rotation
+    if order == 2
+        # third order for rotations
+        # to match GRCC code
+        order = 3
+    end
+
+    q_est = rotm2quat(reshape(center[1:9],3,3))
+    q̄, upper_bound = get_quat_cent2(purse, order, q_est; silent=silent)
+    
+    R̄ = quat2rotm(normalize(q̄))
+    R₂, t₂, Rinfo2 = maxrotationdist(R̄, purse, 2; silent=silent)
+    rotation_rad_cheb = rad2deg(acos(1 - Rinfo2[1] / 4))
+
+    return translation_rad_cheb, rotation_rad_cheb
+end
+
+"""
+Compute translation bounds from GRCC
+
+Helper function
+https://github.com/Negotch/GRCC-code/blob/a943bb0247e0fdbc75b9b10a172383e8c856c426/utils/modified_purse_lass_sedumi.m
+"""
+function modified_purse_lass_sedmi(purse, P, Q, order; silent=false)
+    q_front, q_backproj, q_eqs = purse
+
+    @polyvar R[1:3,1:3]
+    @polyvar t[1:3]
+    vars = [vec(R);t]
+
+    # objective
+    obj = -vars'*vars
+
+    # constraints
+    # expr ≥ 0
+    ineq = Vector{TSSOS.Poly{Float64}}()
+    # expr = 0
+    eq = Vector{TSSOS.Poly{Float64}}()
+
+    # SO(3) constraints (h)
+    for (i,q) in enumerate(q_eqs)
+        push!(eq, [vars;1]'*[q.H  q.c;  q.c'  q.d]*[vars;1])
+    end
+
+    # PURSE constraints
+    for (i,q) in enumerate(q_backproj)
+        push!(ineq, -[vars;1]'*[q.H  q.c;  q.c'  q.d]*[vars;1])
+    end
+    # (no slack)
+    for (i,q) in enumerate(q_front)
+        push!(ineq, -[vars;1]'*[q.H  q.c;  q.c'  q.d]*[vars;1])
+    end
+
+    # bounded translation
+    push!(ineq, 10^4 - sum(t.^2))
+
+    ## relax and solve
+    # relax to SDP (TODO--going to have to use TSSOS instead)
+    pop = [obj; ineq; eq]
+    opt, sol, data, gap, model = cs_tssos_first(pop, vars, order, numeq=length(eq), TS=false, CS=false, QUIET=silent, solve=false, solution=false, MomentOne=true)
+    
+
+    # Main.@infiltrate
+
+    # solve with general_lass_sedumi (TODO--modify TSSOS model?)
+    upper_bound, a = general_lass_sedumi(model, P, Q, length(vars); silent=silent)
+
+    return upper_bound
+end
+
+"""
+Get center quaternion via GRCC
+
+Helper function
+https://github.com/Negotch/GRCC-code/blob/main/example_purse.m#L50
+"""
+function get_quat_cent2(purse, order, q_est; silent=false)
+    q_front, q_backproj, _ = purse
+
+    @polyvar q[1:4]
+    @polyvar t[1:3]
+    x = [q; t]
+    y = [vec(quat2rotm(q)); t]
+
+    ### get_ineq function
+    # constraints
+    # expr ≥ 0
+    g = Vector{TSSOS.Poly{Float64}}()
+    # expr = 0
+    h = Vector{TSSOS.Poly{Float64}}()
+
+    # unit quaternion
+    h = [q'*q - 1]
+
+    # bounded translation
+    push!(g, 30^2 - t'*t)
+
+     # PURSE constraints
+    for (i,q) in enumerate(q_backproj)
+        push!(g, -[y;1]'*[q.H  q.c;  q.c'  q.d]*[y;1])
+    end
+    # (no slack)
+    for (i,q) in enumerate(q_front)
+        push!(g, -[y;1]'*[q.H  q.c;  q.c'  q.d]*[y;1])
+    end
+    ### end get_ineq
+
+    push!(g, -q_est'*q)
+    # objective
+    f = -x'*x
+
+    # renormalize (?)
+    for (i, gi) in enumerate(g)
+        gi_mod = subs(gi, x[7]=>20*x[7])
+        g[i] = gi_mod
+    end
+    # x[7] is not in h since h just enforces the quaternions
+    # don't need to clean small vars with dynamic polynomials
+
+    # relax and solve
+    obj = f
+    ineq = g
+    eq = h
+    # relax to SDP (TODO--going to have to use TSSOS instead)
+    pop = [obj; ineq; eq]
+    opt, sol, data, gap, model = cs_tssos_first(pop, x, order, numeq=length(eq), TS=false, CS=false, QUIET=silent, solve=false, solution=false, MomentOne=true)
+
+
+    P = [diagm(ones(4))  zeros(4,3)]
+    Q = diagm(ones(4))
+    # solve with general_lass_sedmi (TODO--modify TSSOS model?)
+    upper_bound, q̄ = general_lass_sedumi(model, P, Q, length(x); silent=false)
+
+
+
+    return q̄, upper_bound
+end
+
+"""
+Solve general lass relaxation for GRCC
+
+https://github.com/Negotch/GRCC-code/blob/a943bb0247e0fdbc75b9b10a172383e8c856c426/utils/general_lass_sedumi.m
+"""
+function general_lass_sedumi(model, S, Q, d; silent=false)
+    model = dualize(model)
+
+    # model is dual version of relaxed SDP
+    nm = size(S,1)
+    Q_inv = inv(Q)
+    T = S'*Q*S
+
+    # modify blk, At, b, C
+    # blk: size of each PSD constraint
+    # At * x = b (each linear constraint)
+    # C * X is objective
+    # also modify 
+
+    # add semidefinite variable S2 (done)
+    # [I a; a' t] ⪰ 0
+    @variable(model, S2[1:nm+1,1:nm+1] ∈ PSDCone())
+
+    # 1) append all zeros to S2's first m constraints (done)
+    # this part is particular to the format and does nothing
+
+    # 2) add constraint nm x nm block of S2 is identity (done)
+    # actually set it to Q_inv (which is usually identity)
+    @constraint(model, S2[1:nm,1:nm] .== Q_inv)
+
+    # 3) add constriant right blk of S2 is a
+    # a = S*x (X = x*x')
+    # first get X
+    c = all_constraints(model, Vector{JuMP.AffExpr}, MOI.PositiveSemidefiniteConeTriangle)
+    co = constraint_object.(c)
+    filter!(x->x.set.side_dimension != d+1, co)
+    X_triangular = co[1].func
+    X = vec_to_symmat_rowwise(X_triangular, co[1].set.side_dimension)
+    # add constraint
+    @constraint(model, S*X[2:d+1,1] - S2[1:nm,end] .== 0)
+
+
+    # 4) modify cost function
+    # t - variables projected via T
+    @objective(model, Min, (S2[end,end] - tr(T'*X[2:d+1,2:d+1])))
+    # TODO: is this right?
+
+
+    # Solve!
+    if silent
+        set_silent(model)
+    end
+    set_optimizer(model, Mosek.Optimizer)
+    optimize!(model)
+
+    a = S*value.(X)[2:d+1,1]
+    upper_bound = sqrt(abs(objective_value(model)))
+    # TODO: UPPER BOUND IS POSITIVE?
+    @warn "USING ABSOLUTE VALUE; something is wrong with implementation."
+
+    return upper_bound, a
+end
+
+
+# simple code to convert from triangle vec to matri
+function vec_to_symmat_rowwise(v::Vector{T}, n::Int) where {T}
+
+    length(v) == n*(n+1) ÷ 2 || error("Vector length does not match n*(n+1)/2")
+    M = Matrix{T}(undef, n, n)
+    idx = 1
+    for i in 1:n
+        for j in 1:i
+            M[i,j] = v[idx]
+            M[j,i] = v[idx]  # symmetry
+            idx += 1
+        end
+    end
+    return M
+end
+
+"""
+Get max rotation distance from center in PURSE
+
+https://github.com/Negotch/GRCC-code/blob/main/utils/maxRotationDist.m
+"""
+function maxrotationdist(R̄, purse, order; silent=false)
+    q_front, q_backproj, q_eqs = purse
+
+    @polyvar R[1:3,1:3]
+    @polyvar t[1:3]
+    vars = [vec(R);t]
+
+    # objective
+    obj = -sum((vec(R) - vec(R̄)).^2)
+
+    # constraints
+    # expr ≥ 0
+    ineq = Vector{TSSOS.Poly{Float64}}()
+    # expr = 0
+    eq = Vector{TSSOS.Poly{Float64}}()
+
+    # SO(3) constraints (h)
+    for (i,q) in enumerate(q_eqs)
+        push!(eq, [vars;1]'*[q.H  q.c;  q.c'  q.d]*[vars;1])
+    end
+
+    # PURSE constraints
+    for (i,q) in enumerate(q_backproj)
+        push!(ineq, -[vars;1]'*[q.H  q.c;  q.c'  q.d]*[vars;1])
+    end
+    # (no slack)
+    for (i,q) in enumerate(q_front)
+        push!(ineq, -[vars;1]'*[q.H  q.c;  q.c'  q.d]*[vars;1])
+    end
+
+    # bounded translation
+    push!(ineq, 30^2 - sum(t.^2))
+
+    # solve
+    pop = [obj; ineq; eq]
+    order = order
+    opt, sol, data, gap = cs_tssos_first(pop, vars, order, numeq=length(eq), TS=false, CS=false, QUIET=silent, solution=true, MomentOne=true, refine=false)
+    
+    f_sdp = -opt
+    f_est = nothing
+
+    if data.SDP_status != MOI.OPTIMAL
+        silent || @warn "[maxrotationdist] Returned status $(data.SDP_status). Results may not be lower bound!"
+        gap = -1
+    end
+    # gap, f_est does not work (we also don't need it)
+    R_est = (vars=>sol[1]) .|> R
+    t_est = (vars=>sol[1]) .|> t
+
+    # the code also checks if R, t is in PURSE, but doesn't use that check anywhere. We omit it.
+
+    return R_est, t_est, (f_sdp, f_est, gap)
+end
