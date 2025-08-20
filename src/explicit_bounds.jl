@@ -934,9 +934,6 @@ function modified_purse_lass_sedmi(purse, P, Q, order; silent=false)
     # relax to SDP (TODO--going to have to use TSSOS instead)
     pop = [obj; ineq; eq]
     opt, sol, data, gap, model = cs_tssos_first(pop, vars, order, numeq=length(eq), TS=false, CS=false, QUIET=silent, solve=false, solution=false, MomentOne=true)
-    
-
-    # Main.@infiltrate
 
     # solve with general_lass_sedumi (TODO--modify TSSOS model?)
     upper_bound, a = general_lass_sedumi(model, P, Q, length(vars); silent=silent)
@@ -1070,7 +1067,9 @@ function general_lass_sedumi(model, S, Q, d; silent=false)
     a = S*value.(X)[2:d+1,1]
     upper_bound = sqrt(abs(objective_value(model)))
     # TODO: UPPER BOUND IS POSITIVE?
-    @warn "USING ABSOLUTE VALUE; something is wrong with implementation."
+    if objective_value(model) > 0
+        @warn "USING ABSOLUTE VALUE; something is wrong with implementation."
+    end
 
     return upper_bound, a
 end
