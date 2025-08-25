@@ -9,8 +9,8 @@ using SimpleRotations
 
 # settings used for figure
 dataset = "lmo"
-object_id = 9
-frame = 352
+object_id = 1#9
+frame = 1175#352
 α = 0.1
 p = Inf
 
@@ -50,8 +50,8 @@ axangs = rotm2axang.([R*R_est' for R in S_R])
 Plots.gr()
 surf = ellipse_to_surf(Hθ_o1, zeros(3), 100)
 Plots.scatter3d(surf[1,:], surf[2,:], surf[3,:], label="order 1", msw=0.,c=2)
-surf = ellipse_to_surf(Hθ_o2, zeros(3), 100)
-Plots.scatter3d!(surf[1,:], surf[2,:], surf[3,:], label="order 2", msw=0.,c=3)
+# surf = ellipse_to_surf(Hθ_o2, zeros(3), 100)
+# Plots.scatter3d!(surf[1,:], surf[2,:], surf[3,:], label="order 2", msw=0.,c=3)
 surf = ellipse_to_surf(diagm(ones(3)), zeros(3), 100)
 Plots.scatter3d!(surf[1,:], surf[2,:], surf[3,:], label="unit", msw=0.,c="red3")
 # samples
@@ -70,10 +70,10 @@ Plots.scatter([0],[0],[0],label="center")
 # order 1 ellipse
 surf = ellipse_to_surf(Hθ_o1, zeros(3), 100)
 Plots.scatter3d!(surf[1,:], surf[2,:], surf[3,:], label="order 1")
-# surf = ellipse_to_surf(diagm(ones(3)), zeros(3), 100)
-# Plots.scatter3d!(surf[1,:], surf[2,:], surf[3,:], label="unit")
-surf = ellipse_to_surf(Hθ_o2, zeros(3), 100)
-Plots.scatter3d!(surf[1,:], surf[2,:], surf[3,:], label="order 2")
+surf = ellipse_to_surf(diagm(ones(3)), zeros(3), 100)
+Plots.scatter3d!(surf[1,:], surf[2,:], surf[3,:], label="unit")
+# surf = ellipse_to_surf(Hθ_o2, zeros(3), 100)
+# Plots.scatter3d!(surf[1,:], surf[2,:], surf[3,:], label="order 2")
 # samples
 plot_R = Plots.scatter3d!(eachrow(ωsinθ)..., label="samples")
 
@@ -82,7 +82,7 @@ plot_R = Plots.scatter3d!(eachrow(ωsinθ)..., label="samples")
 Plots.scatter([0],[0],[0],label="center")
 surf = ellipse_to_surf(Hθq_o2, zeros(3), 100)
 Plots.scatter3d!(surf[1,:], surf[2,:], surf[3,:], label="order 2")
-# surf = ellipse_to_surf(diagm(ones(3)), zeros(3), 100)
-# Plots.scatter3d!(surf[1,:], surf[2,:], surf[3,:], label="unit")
+surf = ellipse_to_surf(diagm(ones(3)), zeros(3), 100)
+Plots.scatter3d!(surf[1,:], surf[2,:], surf[3,:], label="unit")
 # samples
 plot_q = Plots.scatter3d!(eachrow(ωsinθ2)..., label="samples")

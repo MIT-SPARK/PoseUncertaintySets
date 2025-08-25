@@ -8,12 +8,12 @@ using DataFrames
 using PoseUncertaintySets
 
 # parameters
-dataset = "lmo"
-object_ids = [1,5,6,9,8,11,12]
+# dataset = "lmo"
+# object_ids = [1,5,6,9,8,11,12]
 # dataset = "ycbv"
 # object_ids = 1:21
-# dataset = "cast"
-# object_ids = [1]
+dataset = "cast"
+object_ids = [1]
 α = 0.1
 p = 2 # cannot do Inf
 pose = "pnp2" # original paper uses ransag
