@@ -45,6 +45,8 @@ TODO: where to find all this / quick download script?
 - `src` has functions. At the top level are the core functions for processing a single image.
 - `src/datasets` contains functions for processing datasets. These rely on the core functions in `src`.
 
+TODO
+
 ## Reproduce results
 We assume you are in the home directory of this repository and you've been through the quick start step.
 

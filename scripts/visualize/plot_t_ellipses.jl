@@ -26,6 +26,9 @@ H_o2, gap_o2, status_o2 = bounding_ellipse_quat([rotm2quat(R_est); t_est], prob;
 P2 = [zeros(3,4) diagm(ones(3))]
 Ht_o2 = inv(P2*pinv(H_o2)*P2')
 
+# RANSAG
+trans_bound, trans_gap, ang_bound, ang_gap, status = purse_bounds([vec(R_est); t_est], prob.y, prob.r, prob.b, prob.camK; order=2, silent=true)
+
 # get samples
 S_R, S_t = sample_set(prob; method="ransag", T=1000)
 S_t = reduce(hcat, S_t)
@@ -36,6 +39,9 @@ Plots.gr()
 # order 1 ellipse
 surf = ellipse_to_surf(Ht_o1, t_est, 100)
 Plots.scatter3d(surf[1,:], surf[2,:], surf[3,:], label="order 1", msw=0.,c=4)
+# RANSAG
+# surf = ellipse_to_surf(diagm(ones(3))/trans_bound.^2, t_est, 100)
+# Plots.scatter3d!(surf[1,:], surf[2,:], surf[3,:], label="RANSAG", msw=0., c=1)
 # order 2 ellipse
 surf = ellipse_to_surf(Ht_o2, t_est, 100)
 Plots.scatter3d!(surf[1,:], surf[2,:], surf[3,:], label="order 2", msw=0.,c=3)
@@ -56,5 +62,9 @@ Plots.scatter3d!(surf[1,:], surf[2,:], surf[3,:], label="order 1")
 # order 2 ellipse
 surf = ellipse_to_surf(Ht_o2, t_est, 100)
 Plots.scatter3d!(surf[1,:], surf[2,:], surf[3,:], label="order 2")
+# RANSAG
+surf = ellipse_to_surf(diagm(ones(3))/trans_bound.^2, t_est, 100)
+Plots.scatter3d!(surf[1,:], surf[2,:], surf[3,:], label="RANSAG")
 # samples
-plot_interative = Plots.scatter3d!(eachrow(S_t)..., label="samples")
+plot_interactive = Plots.scatter3d!(eachrow(S_t)..., label="samples")
+Plots.plot!(xlim=[t_est[1]-2.5, t_est[1]+2.5], ylim=[t_est[2]-2.5,t_est[2]+2.5], zlim=[t_est[3]-2.5,t_est[3]+2.5])
