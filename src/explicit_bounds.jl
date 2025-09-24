@@ -3,6 +3,127 @@
 
 
 """
+Uncertainty bound from "Object Pose Estimation with Statistical Guarantees"
+
+Maximize distance to PURSE while remaining in PURSE.
+"""
+function purse_bounds(center, y, r, b, camK; p=2, order=2, silent=false)
+    (p == 2 || p == Inf) || error("only accepts `p=2` or `p=Inf`")
+
+    if p == 2
+        q_front, q_backproj = uncertaintyset_l2(y, r, b, camK)
+        q_eqs = SO3_constraints()
+    else
+        # TODO: need redundant constraints for this to work
+        q_front, q_backproj = uncertaintyset_linf_R(y, r, b, camK)
+        q_eqs = SO3_constraints()
+        # q_front, q_backproj = uncertaintyset_linf_q(y, r, b, camK)
+        # q_eqs = q_constraints()
+    end
+
+    return purse_bounds(center, q_front, q_backproj, q_eqs; order=order, silent=silent)
+end
+
+function purse_bounds(center, q_front, q_backproj, q_eqs; order=2, silent=false)
+    dim = length(center)
+    if dim == 12
+        Rc = reshape(center[1:9],3,3)
+        @polyvar R[1:3,1:3]
+    else
+        Rc = center[1:4]
+        @polyvar R[1:4] 
+    end
+
+    tc = center[end-2:end] 
+    @polyvar t[1:3]
+    vars = [vec(R); t]
+
+    ang_bound = 0.
+    ang_gap = 1e6
+    trans_bound = 0.
+    trans_gap = 1e6
+
+    status = Array{MOI.TerminationStatusCode}(undef, 2)
+
+    # 0: translations
+    # 1: rotations
+    for λ = [0, 1]
+        # objective
+        if dim == 12
+            obj = -( λ*tr((R-Rc)'*(R-Rc)) + (1-λ)*(t-tc)'*(t-tc) )
+        else
+            obj = -( λ*((R-Rc)'*(R-Rc)) + (1-λ)*(t-tc)'*(t-tc) )
+        end
+
+        # constraints
+        # expr ≥ 0
+        ineq = zeros(Polynomial{DynamicPolynomials.Commutative{DynamicPolynomials.CreationOrder}, Graded{LexOrder}, Float64}, 0) 
+        # expr = 0
+        eq = zeros(Polynomial{DynamicPolynomials.Commutative{DynamicPolynomials.CreationOrder}, Graded{LexOrder}, Float64}, 0) 
+
+        # PURSE constraints
+        X = [vars; 1]*[vars; 1]'
+        slack = 1e-3
+        for (i,q) in enumerate(q_front)
+            Q = Symmetric([q.H  q.c;  q.c'  q.d])
+            push!(ineq, -tr(Q*X) - slack)
+        end
+        for (i,q) in enumerate(q_backproj)
+            Q = Symmetric([q.H  q.c;  q.c'  q.d])
+            push!(ineq, -tr(Q*X))
+        end
+        for (i,q) in enumerate(q_eqs)
+            Q = Symmetric([q.H  q.c;  q.c'  q.d])
+            push!(eq, tr(Q*X))
+        end
+
+        # 90 degree rotation constraint
+        if dim == 7
+            push!(ineq, R'*center[1:4])
+            @warn "angular bound conversion to degrees not yet implemented"
+        end
+
+        # solve
+        pop = [obj; ineq; eq]
+        order = order # supplementary material: they use second order
+        opt, sol, data, gap = cs_tssos_first(pop, vars, order, numeq=length(eq), TS=false, CS=false, QUIET=silent, solution=true, refine=false)
+
+        # if isdefined(Main, :Infiltrator) Main.infiltrate(@__MODULE__, Base.@locals, @__FILE__, @__LINE__) end # 🚨 INFILTRATOR 🚨
+        if isnothing(gap)
+            gap = -1
+        end
+
+        if data.SDP_status != MOI.OPTIMAL
+            silent || @warn "[purse_bounds] λ=$λ returned status $(data.SDP_status). Results may not be lower bound!"
+            gap = -1
+        end
+        status[λ+1] = data.SDP_status
+
+        if λ == 1
+            # rotation case
+            # |R₁ - R₂|^2_F = |R₁|^2_F + |R₂|^2_F - 2⟨R₁, R₂⟩
+            # ⟨R₁, R₂⟩ = (6 - |R₁ - R₂|^2_F) / 2
+            frob_norm = -opt
+            if abs(1 - frob_norm/4) > 1
+                ang_bound = 180.
+            else
+                ang_bound = SimpleRotations.robust_acos(1 - frob_norm/4)*180/π
+            end
+            ang_gap = gap
+        else
+            # translation case
+            # opt = \|t - tc\|^2_2
+            trans_bound = sqrt(abs(-opt))
+            trans_gap = gap
+        end
+    end
+
+    return trans_bound, trans_gap, ang_bound, ang_gap, status
+end
+
+
+
+"""
     angular_bounds_perturbation(center, H; silent=true)
 
 Compute angular bounds given center, ellipse.
@@ -610,126 +731,6 @@ function angular_sphere_axang_quat(center, H; silent=false, order=2)
     # extract angle
     angle = 2*acos(opt)*180/π
     # angle is radius, axis doesn't matter for this particular problem.
-end
-
-
-"""
-Uncertainty bound from "Object Pose Estimation with Statistical Guarantees"
-
-Maximize distance to PURSE while remaining in PURSE.
-"""
-function purse_bounds(center, y, r, b, camK; p=2, order=2, silent=false)
-    (p == 2 || p == Inf) || error("only accepts `p=2` or `p=Inf`")
-
-    if p == 2
-        q_front, q_backproj = uncertaintyset_l2(y, r, b, camK)
-        q_eqs = SO3_constraints()
-    else
-        # TODO: need redundant constraints for this to work
-        q_front, q_backproj = uncertaintyset_linf_R(y, r, b, camK)
-        q_eqs = SO3_constraints()
-        # q_front, q_backproj = uncertaintyset_linf_q(y, r, b, camK)
-        # q_eqs = q_constraints()
-    end
-
-    return purse_bounds(center, q_front, q_backproj, q_eqs; order=order, silent=silent)
-end
-
-function purse_bounds(center, q_front, q_backproj, q_eqs; order=2, silent=false)
-    dim = length(center)
-    if dim == 12
-        Rc = reshape(center[1:9],3,3)
-        @polyvar R[1:3,1:3]
-    else
-        Rc = center[1:4]
-        @polyvar R[1:4] 
-    end
-
-    tc = center[end-2:end] 
-    @polyvar t[1:3]
-    vars = [vec(R); t]
-
-    ang_bound = 0.
-    ang_gap = 1e6
-    trans_bound = 0.
-    trans_gap = 1e6
-
-    status = Array{MOI.TerminationStatusCode}(undef, 2)
-
-    # 0: translations
-    # 1: rotations
-    for λ = [0, 1]
-        # objective
-        if dim == 12
-            obj = -( λ*tr((R-Rc)'*(R-Rc)) + (1-λ)*(t-tc)'*(t-tc) )
-        else
-            obj = -( λ*((R-Rc)'*(R-Rc)) + (1-λ)*(t-tc)'*(t-tc) )
-        end
-
-        # constraints
-        # expr ≥ 0
-        ineq = zeros(Polynomial{DynamicPolynomials.Commutative{DynamicPolynomials.CreationOrder}, Graded{LexOrder}, Float64}, 0) 
-        # expr = 0
-        eq = zeros(Polynomial{DynamicPolynomials.Commutative{DynamicPolynomials.CreationOrder}, Graded{LexOrder}, Float64}, 0) 
-
-        # PURSE constraints
-        X = [vars; 1]*[vars; 1]'
-        slack = 1e-3
-        for (i,q) in enumerate(q_front)
-            Q = Symmetric([q.H  q.c;  q.c'  q.d])
-            push!(ineq, -tr(Q*X) - slack)
-        end
-        for (i,q) in enumerate(q_backproj)
-            Q = Symmetric([q.H  q.c;  q.c'  q.d])
-            push!(ineq, -tr(Q*X))
-        end
-        for (i,q) in enumerate(q_eqs)
-            Q = Symmetric([q.H  q.c;  q.c'  q.d])
-            push!(eq, tr(Q*X))
-        end
-
-        # 90 degree rotation constraint
-        if dim == 7
-            push!(ineq, R'*center[1:4])
-            @warn "angular bound conversion to degrees not yet implemented"
-        end
-
-        # solve
-        pop = [obj; ineq; eq]
-        order = order # supplementary material: they use second order
-        opt, sol, data, gap = cs_tssos_first(pop, vars, order, numeq=length(eq), TS=false, CS=false, QUIET=silent, solution=true, refine=false)
-
-        # if isdefined(Main, :Infiltrator) Main.infiltrate(@__MODULE__, Base.@locals, @__FILE__, @__LINE__) end # 🚨 INFILTRATOR 🚨
-        if isnothing(gap)
-            gap = -1
-        end
-
-        if data.SDP_status != MOI.OPTIMAL
-            silent || @warn "[purse_bounds] λ=$λ returned status $(data.SDP_status). Results may not be lower bound!"
-            gap = -1
-        end
-        status[λ+1] = data.SDP_status
-
-        if λ == 1
-            # rotation case
-            # |R₁ - R₂|^2_F = |R₁|^2_F + |R₂|^2_F - 2⟨R₁, R₂⟩
-            # ⟨R₁, R₂⟩ = (6 - |R₁ - R₂|^2_F) / 2
-            frob_norm = -opt
-            if abs(1 - frob_norm/4) > 1
-                ang_bound = 180.
-            else
-                ang_bound = SimpleRotations.robust_acos(1 - frob_norm/4)*180/π
-            end
-            ang_gap = gap
-        else
-            # translation case
-            # opt = \|t - tc\|^2_2
-            trans_bound = sqrt(abs(-opt))
-            trans_gap = gap
-        end
-    end
-
-    return trans_bound, trans_gap, ang_bound, ang_gap, status
 end
 
 

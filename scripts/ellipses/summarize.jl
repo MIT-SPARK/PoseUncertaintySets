@@ -118,9 +118,9 @@ println("Certificate: $(sum(slem_dict["data"][:,:gaps] .== 1))/$(size(slem_dict[
 slem_t = reduce(hcat, slem_t)
 slem_r = reduce(hcat, slem_r)
 
-# translation CDF (radius)
+# translation CDF (volume)
 if sdporder == 2
-    p_tcdf = Plots.plot(ylabel="CDF", title="Translation Uncertainty Volume", xlabel="Volume (m^3)")
+    p_tcdf = Plots.plot(ylabel="CDF", title="Translation Uncertainty", xlabel="Volume (m^3)")
 end
 plot_cdf!(p_tcdf, 4/3*π*(bounds_ransag.t)[filter_combined .&& bounds_ransag.t .> 0].^3; label="RANSAG")
 plot_cdf!(p_tcdf, 4/3*π*slem_t[1,:].*slem_t[2,:].*slem_t[3,:], label="order $sdporder")
@@ -132,9 +132,9 @@ Plots.plot!(yticks=0:0.2:1, ylim=[0,1])
 Plots.plot!(p_tcdf,xlim=[1e-5,200],xticks=[1e-4,1e-2,1,100])
 Plots.plot!(fontfamily="helvetica")
 
-# angular CDF (radius)
+# angular CDF (volume)
 if sdporder == 2
-    p_acdf = Plots.plot(ylabel="CDF", title="Angular Bounds")
+    p_acdf = Plots.plot(ylabel="CDF", title="Angular Uncertainty", xlabel="Volume (deg^3)")
 end
 plot_cdf!(p_acdf, 4/3*π*min.((bounds_ransag.θ)[filter_combined .&& bounds_ransag.θ .> 0], 90.).^3; label="RANSAG")
 # plot_cdf!(p_acdf, slem_r[1,:]; label="\\theta_3",c=color_ours,lw=2)
@@ -155,3 +155,5 @@ Plots.plot!(fontfamily="helvetica")
 
 # p_acdf = Plots.plot(ylabel="CDF", title="Angular Bounds")
 # plot_cdf!(p_acdf, (bounds_ransag.θ)[filterval .&& bounds_ransag.θ .> 0]; label="RANSAG")
+
+Plots.plot(p_tcdf, p_acdf)

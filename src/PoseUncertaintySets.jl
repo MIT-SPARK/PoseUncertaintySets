@@ -27,22 +27,20 @@ include("load_data.jl")
 export get_problem, calibrate_lp, load_keypoint_data
 
 include("pose_estimation.jl")
-export gaussianpose, ransagpose, gaussianpose_sdplr, maxmarginpose
-export conformalpose, conformalpose_local, sample_set
+export gaussianpose, ransagpose
 
 include("uncertainty_set.jl")
+export sample_set
 include("uncertainty_bounds.jl")
 export bounding_ellipse, bounding_sphere, bounding_ellipse_quat
 include("explicit_bounds.jl")
-export purse_bounds, angular_bounds_rpy, angular_bounds_quat, refine_bbox
+export purse_bounds, refine_bbox
 export grcc_bounds
 
 include("datasets/poses.jl")
 export dataset_pose_est, calc_pose_errors, calc_projection_errors
 include("datasets/bounds.jl")
-export dataset_slem_bounds, dataset_slem_bounds_quat, dataset_ransag_bounds, dataset_slem
-include("datasets/workflows.jl")
-export l2_workflow, linfR_workflow, linfq_workflow
+export dataset_ransag_bounds, dataset_slem
 
 include("visualization/plot_3d.jl")
 export ellipse_to_surf, plot_bbox!, plot_cdf!, ellipse_to_surf_nd

@@ -12,15 +12,16 @@ using PoseUncertaintySets
 
 image_parent = "../data/lmo/test"
 cadpath = "../data/lmo/models_eval/"
-# load CAD
-cad = FileIO.load(cadpath*(@sprintf "obj_%06d.ply" object_id))
-cad_m = GeometryBasics.Mesh(GeometryBasics.coordinates(cad)/1000, cad.faces)
 
 # settings used for figure
 object_id = 9
 frame = 352
 α = 0.1
 p = Inf
+
+# load CAD
+cad = FileIO.load(cadpath*(@sprintf "obj_%06d.ply" object_id))
+cad_m = GeometryBasics.Mesh(GeometryBasics.coordinates(cad)/1000, cad.faces)
 
 # load data and calibrate
 keypoint_data, gt = load_keypoint_data(calibrate_lp, p=p, α=α)
@@ -33,8 +34,10 @@ H, gap_slem, status_slem = bounding_ellipse_quat(center, prob; silent=true, orde
 
 # plot pose estimate
 p_pose, img = plot_image(image_parent, frame)
-(p_pose, seg) = plot_mask!(p_pose, img, cadpath, object_id, (R_est, t_est), camK; lazy=false)
+@time (p_pose, seg) = plot_mask!(p_pose, img, cadpath, object_id, (R_est, t_est), camK; lazy=false)
 plot_outline!(p_pose, img, seg)
+
+error("hi")
 
 # plot uncertainty (sampled from pose uncertainty set)
 p = Plots.plot()

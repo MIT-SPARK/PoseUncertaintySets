@@ -158,19 +158,29 @@ function ransagpose(y, r, b, camK; T=1000)
 
     # average
     R = project2SO3(sum(S_R))
-    t = mean(S_t) # TODO: check
+    t = mean(S_t)
 
     return R, t, purse_empty
 end
 
 ransagpose(prob; kwargs...) = ransagpose(prob.y, prob.r, prob.b, prob.camK; kwargs...)
 
+
+
+#################################################################
+##
+## Functions below kept for reference, not recommended or in use.
+## 
+#################################################################
+
+
+
 """
     gaussianpose_sdplr(y, r, b, camK; silent=true)
 
 Certifiable PnP with Gaussian noise assumption.
 
-JuMP version just for fun. Not recommended.
+JuMP version with SDPLR optimizer just for fun. Not recommended.
 
 # Arguments:
 - `r`: vector of conformal radii (same confidence) [N]
@@ -252,7 +262,7 @@ end
 """
     R_est, t_est, tight, status = maxmarginpose(y, r, b, camK; lowerb=-1, upperb=10, silent=false)
 
-First order relaxation with l2 form of pose uncertainty set.
+First order relaxation with l2 form of pose uncertainty set. NOT RECOMMENDED.
 
 Returns pose estimate, optimization status, solution data, JuMP model
 
@@ -610,58 +620,4 @@ end
 
 function conformalpose_local(prob; silent=false)
     return conformalpose_local(prob.y, prob.r, prob.b, prob.camK; p=prob.p, silent=silent)
-end
-
-"""
-Sample from the pose uncertainty set.
-
-Offer 2 methods:
-1. RANSAG (fails when set is very large)
-2. Griding + max margin (more robust but slower)
-"""
-function sample_set(prob; method="ransag", Ht=nothing, T=1000)
-    y = prob.y
-    r = prob.r
-    b = prob.b
-    camK = prob.camK
-    N = size(r,1)
-
-    # set of feasible poses found
-    S_R = []
-    S_t = []
-    if method == "ransag"
-        # search for T iterations
-        for _ = 1:T
-            idxs = sample(1:N, 3, replace=false)
-
-            # perturb from center by (uniformly) random magnitude in random direction
-            r_selected = r[idxs] .* rand(3) # random magnitude
-            dir = normalize.(eachcol(randn(2,3))) # random direction
-            kpts = y[1:2,idxs] + reduce(hcat, r_selected .* dir)
-            kpts = [kpts; ones(1,3)]
-
-            # run p3p
-            R_p3p, t_p3p = p3p(kpts, b[:,idxs], camK)
-
-            # save all which are in PURSE
-            for i = axes(t_p3p,2)
-                R = R_p3p[:,:,i]
-                t = t_p3p[:,i]
-                y_p3p = camK*(R*b .+ t)
-                y_p3p = reduce(hcat, eachcol(y_p3p) ./ y_p3p[3,:])
-
-                # just check backproj
-                if sum(norm.(eachcol(y_p3p - y), prob.p) .<= r) == N
-                    push!(S_R, R)
-                    push!(S_t, t)
-                end
-            end
-        end
-    elseif method == "grid"
-        # convert ellipse into bbox
-        # convert bbox into grid
-        # also check outside ellipse (and warn if failure!)
-        error("Not implemented yet")
-    end
-    return S_R, S_t
 end

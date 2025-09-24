@@ -7,6 +7,7 @@ Julia code for Pose Uncertainty Sets
 TODO:
 - Data folder
 - Julia environment
+- Put some demo data in the repo!
 
 ### Setting up the data folder
 To run experiments you will need a data folder. We show the default file structure below.
@@ -56,7 +57,7 @@ We assume you are in the home directory of this repository and you've been throu
 
 For BOP keypoints, clone the [bop-keypoints repo](https://github.com/lopenguin/bop-keypoints) and follow the instructions in the README to setup and run keypoint detection on your dataset of choice. You'll need to run it on lmo and ycbv for the full test split. For lmo only, you need to run on the test and cal splits.
 
-The authors of the CAST dataset do not release their keypoint detector.
+We do not release the CAST keypoint detector.
 
 </details>
 

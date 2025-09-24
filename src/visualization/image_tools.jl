@@ -125,84 +125,151 @@ end
 
 
 """
-Get segmentation mask by tracing object pose
+Get segmentation mask by tracing object pose.
+
+Rasterization version, relatively fast.
 """
 function get_mask(img, R, t, cad_m, camK)
-    # get bbox using vertices
-    bbox = zeros(Int,2,2) # [min u max u; min v max v]
-    bbox[:,1] = [1000;1000]
-    mask = zeros(Bool, size(img))
-    for coord in GeometryBasics.coordinates(cad_m)
-        pixel = camK*(R*coord + t)
-        pixel ./= pixel[3]
-        coords = [Int(round(pixel[1])), Int(round(pixel[2]))]
-        coords[1] = clamp(coords[1], 1, size(img)[2])
-        coords[2] = clamp(coords[2], 1, size(img)[1])
+    H, W = size(img)         # image height, width
+    mask = falses(H, W)      # Bool mask
+    zbuf = fill(Inf, H, W)   # Z-buffer (depth)
 
-        bbox[1,1] = min(bbox[1,1], coords[1])
-        bbox[1,2] = max(bbox[1,2], coords[1])
-        bbox[2,1] = min(bbox[2,1], coords[2])
-        bbox[2,2] = max(bbox[2,2], coords[2])
-
-        mask[coords[2], coords[1]] = true
-    end
-
-    # ray casting helper function: check intersection with triangle
-    function check_triangle(face, coords, ray_origin, ray_direction)
-        triangle = coords[face]
-
-        # face normal
-        e1 = triangle[2] - triangle[1]
-        e2 = triangle[3] - triangle[1]
-
-        # weights in Barycentric coordinates
-        q = ray_direction × e2
-        a = e1'*q
-        
-        s = ray_origin - triangle[1]
-        r = s × e1
-        weights = [0; s'*q/a; ray_direction'*r/a]
-        weights[1] = 1. - (weights[2]+weights[3])
-    
-        dist = e2'*r/a
-    
-        ϵ = 1e-7
-        if (a <= ϵ) || sum(weights .< -ϵ) > 0 || (dist <= 0)
-            return false
-        else
-            return true
-        end
-    end
-
-    # transform coords by pose
-    coords = copy(GeometryBasics.coordinates(cad_m))
-    for (i,c) in enumerate(coords)
-        coords[i] = R*c + t
-    end
+    verts = [R * v + t for v in GeometryBasics.coordinates(cad_m)]
     faces = GeometryBasics.faces(cad_m)
 
-    # build mask
-    for i in bbox[1,1]:bbox[1,2]
-        for j in bbox[2,1]:bbox[2,2]
-            if mask[j,i]
-                continue
-            end
+    # Project vertices to image plane
+    proj = Vector{Vector{Float64}}(undef, length(verts))
+    for (i, v) in enumerate(verts)
+        p = camK * v
+        proj[i] = (p ./ p[3])[:]   # plain Vector{Float64} of length 3
+    end
 
-            # compute ray direction
-            ray_direction = normalize(inv(camK)*[i;j;1])
-            ray_origin = zeros(3)
+    # Rasterize each triangle
+    for face in faces
+        idxs = Vector(face)       # indices of triangle vertices
+        tri = proj[idxs]         # projected 2D+homog vertices
+        tri3d = verts[idxs]      # 3D vertices for depth
 
-            # check intersection with face
-            for face in faces
-                if check_triangle(face, coords, ray_origin, ray_direction)
-                    mask[j, i] = true
-                    break
+        # Extract x,y pixel coords and z depth
+        xs = [tri[k][1] for k = 1:3]
+        ys = [tri[k][2] for k = 1:3]
+        zs = [tri3d[k][3] for k = 1:3]
+
+        # Bounding box (clamped to image size)
+        xmin = clamp(floor(Int, minimum(xs)), 1, W)
+        xmax = clamp(ceil(Int,  maximum(xs)), 1, W)
+        ymin = clamp(floor(Int, minimum(ys)), 1, H)
+        ymax = clamp(ceil(Int,  maximum(ys)), 1, H)
+
+        # Edge function
+        edge(x0,y0, x1,y1, x,y) = (x - x0)*(y1 - y0) - (y - y0)*(x1 - x0)
+
+        # Area of the triangle
+        area = edge(xs[1], ys[1], xs[2], ys[2], xs[3], ys[3])
+
+        if area == 0.0
+            continue  # skip degenerate triangles
+        end
+
+        # Loop pixels in bounding box
+        for j in ymin:ymax    # y = row index
+            for i in xmin:xmax  # x = col index
+                w0 = edge(xs[2], ys[2], xs[3], ys[3], i, j) / area
+                w1 = edge(xs[3], ys[3], xs[1], ys[1], i, j) / area
+                w2 = edge(xs[1], ys[1], xs[2], ys[2], i, j) / area
+
+                if w0 >= 0 && w1 >= 0 && w2 >= 0
+                    z = w0*zs[1] + w1*zs[2] + w2*zs[3]
+                    if z < zbuf[j,i]
+                        zbuf[j,i] = z
+                        mask[j,i] = true
+                    end
                 end
             end
         end
     end
+
     return mask
 end
+
+## Ray-casting version, very slow
+# function get_mask(img, R, t, cad_m, camK)
+#     # get bbox using vertices
+#     bbox = zeros(Int,2,2) # [min u max u; min v max v]
+#     bbox[:,1] = [1000;1000]
+#     mask = zeros(Bool, size(img))
+#     for coord in GeometryBasics.coordinates(cad_m)
+#         pixel = camK*(R*coord + t)
+#         pixel ./= pixel[3]
+#         coords = [Int(round(pixel[1])), Int(round(pixel[2]))]
+#         coords[1] = clamp(coords[1], 1, size(img)[2])
+#         coords[2] = clamp(coords[2], 1, size(img)[1])
+
+#         bbox[1,1] = min(bbox[1,1], coords[1])
+#         bbox[1,2] = max(bbox[1,2], coords[1])
+#         bbox[2,1] = min(bbox[2,1], coords[2])
+#         bbox[2,2] = max(bbox[2,2], coords[2])
+
+#         mask[coords[2], coords[1]] = true
+#     end
+
+#     # ray casting helper function: check intersection with triangle
+#     function check_triangle(face, coords, ray_origin, ray_direction)
+#         triangle = coords[face]
+
+#         # face normal
+#         e1 = triangle[2] - triangle[1]
+#         e2 = triangle[3] - triangle[1]
+
+#         # weights in Barycentric coordinates
+#         q = ray_direction × e2
+#         a = e1'*q
+        
+#         s = ray_origin - triangle[1]
+#         r = s × e1
+#         weights = [0; s'*q/a; ray_direction'*r/a]
+#         weights[1] = 1. - (weights[2]+weights[3])
+    
+#         dist = e2'*r/a
+    
+#         ϵ = 1e-7
+#         if (a <= ϵ) || sum(weights .< -ϵ) > 0 || (dist <= 0)
+#             return false
+#         else
+#             return true
+#         end
+#     end
+
+#     # transform coords by pose
+#     coords = copy(GeometryBasics.coordinates(cad_m))
+#     for (i,c) in enumerate(coords)
+#         coords[i] = R*c + t
+#     end
+#     faces = GeometryBasics.faces(cad_m)
+
+#     # build mask
+#     for i in bbox[1,1]:bbox[1,2]
+#         for j in bbox[2,1]:bbox[2,2]
+#             if mask[j,i]
+#                 continue
+#             end
+
+#             # compute ray direction
+#             ray_direction = normalize(inv(camK)*[i;j;1])
+#             ray_origin = zeros(3)
+
+#             # check intersection with face
+#             for face in faces
+#                 if check_triangle(face, coords, ray_origin, ray_direction)
+#                     mask[j, i] = true
+#                     break
+#                 end
+#             end
+#         end
+#     end
+#     return mask
+# end
+
 
 # stolen from https://github.com/lucianolorenti/ImageSegmentationEvaluation.jl/blob/master/src/utils.jl#L61
 function boundary_map(seg::BitMatrix)
