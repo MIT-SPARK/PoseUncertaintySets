@@ -13,7 +13,7 @@ import Plots
 using SimpleRotations
 using PoseUncertaintySets
 
-# global parameters
+## global parameters
 dataset = "lmo"
 object_ids = [1,5,6,9,8,11,12] # omit 10
 # dataset = "ycbv"
@@ -30,6 +30,8 @@ else
 end
 pose = "pnp2"
 
+
+## Load data
 # load grcc
 if sdporder == 2
     save_path = "../data/$dataset/$(dataset)_grcc.mat"
@@ -54,20 +56,19 @@ posepath = "../data/$dataset/pose_$(pose)_$(round(Int,α*100))_$(string(p)).dat"
 poses = deserialize(posepath)["solns"]
 
 
+## Preprocess data: remove bad points
 # preprocess grcc
 # not using the same filter because format is different
 if sdporder == 2
     filter_grcc = (r_grcc .!= 0) .& (t_grcc .!= 0)
     println("GRCC filtered: $(sum(filter_grcc))/$(size(filter_grcc,1))")
 end
-
 # preprocess ransag
 filter!(:id => f-> f in object_ids, bounds_ransag)
 filter_t = bounds_ransag.status_t .== MOI.OPTIMAL .|| bounds_ransag.status_t .== MOI.ALMOST_OPTIMAL .|| bounds_ransag.status_t .== MOI.SLOW_PROGRESS
 println("RANSAG translations: $(sum(filter_t))/$(size(bounds_ransag,1))")
 filter_θ = bounds_ransag.status_θ .== MOI.OPTIMAL .|| bounds_ransag.status_θ .== MOI.ALMOST_OPTIMAL .|| bounds_ransag.status_θ .== MOI.SLOW_PROGRESS
 println("RANSAG rotations: $(sum(filter_θ))/$(size(bounds_ransag,1))")
-
 # preprocess slem
 data_slem = filter(:id => f-> f in object_ids, slem_dict["data"])
 filter_slem = data_slem.optimal
@@ -77,46 +78,24 @@ println("S-Lemma filtered: $(sum(filter_slem))/$(size(data_slem,1))")
 filter_combined = filter_t .& filter_θ# .& filter_slem
 println("Combined filter: $(sum(filter_combined))/$(size(data_slem,1))")
 
-# continue preprocessing slem
+# s-lemma: get explicit bounds
 slem_t = []
 slem_r = []
-if quat
-    Pt = [zeros(3,4) I]
-    Pr = [I zeros(4,3)]
-else
-    Pt = [zeros(3,9) I]
-    Pr = [I zeros(9,3)]
-end
 for object_id in object_ids
     frames = filter(:id => x->x==object_id, data_slem[filter_combined,:]).frame
     for (i,H) in enumerate(H_slem[object_id].(frames))
-        # project to translations
-        Ht_inv = Pt*pinv(H)*Pt'
-        push!(slem_t, sqrt.(eigvals(Ht_inv)))
-
-        # project to rotations
-        Hr = inv(Pr*pinv(H)*Pr')
         R_est = poses[object_id][1][frames[i]]
-        if quat
-            q_est = rotm2quat(R_est)
-            Hr_centered = Ω2(q_est)'*Hr*Ω2(q_est)
-            Pθ = [zeros(3,1) I]
-            Hθ_inv = Pθ*pinv(Hr_centered)*Pθ'
-            push!(slem_r, abs.(2*asin.(min.(1.,sqrt.(eigvals(Hθ_inv)))))*180/π)
-        else
-            Hr_centered = kron(R_est',diagm(ones(3)))'*Hr*kron(R_est',diagm(ones(3)))
-            Pθ = zeros(3,9)
-            Pθ[1,6] = 1; Pθ[1,8] = -1; Pθ[2,7] = 1; Pθ[2,3] = -1; Pθ[3,2] = 1; Pθ[3,4] = -1
-            Hθ_inv = 1/4*Pθ*pinv(Hr_centered)*Pθ'
-            push!(slem_r, abs.(asin.(min.(1.,sqrt.(eigvals(Hθ_inv)))))*180/π)
-        end
+        _, (boundst, boundsθ) = project_ellipse(H, R_est)
+        push!(slem_t, boundst)
+        push!(slem_r, boundsθ)
     end
 end
-
-println("Certificate: $(sum(slem_dict["data"][:,:gaps] .== 1))/$(size(slem_dict["data"],1))")
-
 slem_t = reduce(hcat, slem_t)
 slem_r = reduce(hcat, slem_r)
+
+
+## Summarize / plot!
+println("Certificate: $(sum(slem_dict["data"][:,:gaps] .== 1))/$(size(slem_dict["data"],1))")
 
 # translation CDF (volume)
 if sdporder == 2

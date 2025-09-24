@@ -31,6 +31,9 @@ function bounding_ellipse(center, y, r, b, camK; p=2, solver=Mosek.Optimizer, or
         q_front, q_backproj = uncertaintyset_l2(y, r, b, camK)
         q_eqs = SO3_constraints()
     else
+        if !silent
+            @warn "redundant constraints for ∞-norm not optimized."
+        end
         ## Rotation Version
         q_front, q_backproj = uncertaintyset_linf_R(y, r, b, camK)
         q_new = []

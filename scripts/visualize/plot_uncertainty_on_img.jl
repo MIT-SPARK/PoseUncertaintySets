@@ -34,7 +34,7 @@ H, gap_slem, status_slem = bounding_ellipse_quat(center, prob; silent=true, orde
 
 # plot pose estimate
 p_pose, img = plot_image(image_parent, frame)
-@time (p_pose, seg) = plot_mask!(p_pose, img, cadpath, object_id, (R_est, t_est), camK; lazy=false)
+(p_pose, seg) = plot_mask!(p_pose, img, cadpath, object_id, (R_est, t_est), camK; lazy=false)
 plot_outline!(p_pose, img, seg)
 
 # plot uncertainty (sampled from pose uncertainty set)

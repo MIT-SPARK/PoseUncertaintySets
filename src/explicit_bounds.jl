@@ -3,6 +3,47 @@
 
 
 """
+Project joint uncertainty ellipse into translation and rotation ellipses.
+
+For S-Lemma approach. Returns ellipses
+"""
+function project_ellipse(H, R̄)
+    dim_r = size(H)[1] - 3
+    quat = dim_r == 4
+
+    # translation ellipse
+    Pt = [zeros(3,dim_r) I]
+    Ht_inv = Pt*pinv(H)*Pt'
+    Ht = pinv(Ht_inv)
+
+    # angular ellipse
+    Pr = [I zeros(dim_r,3)]
+    Hr = pinv(Pr*pinv(H)*Pr')
+    if quat
+        q̄ = rotm2quat(R̄)
+        Hr_centered = Ω2(q̄)'*Hr*Ω2(q̄)
+        Pθ = [zeros(3,1) I]
+        Hθ_inv = Pθ*pinv(Hr_centered)*Pθ'
+    else
+        Hr_centered = kron(R̄',diagm(ones(3)))'*Hr*kron(R̄',diagm(ones(3)))
+        Pθ = zeros(3,9)
+        Pθ[1,6] = 1; Pθ[1,8] = -1; Pθ[2,7] = 1; Pθ[2,3] = -1; Pθ[3,2] = 1; Pθ[3,4] = -1
+        Hθ_inv = 1/4*Pθ*pinv(Hr_centered)*Pθ'
+    end
+    Hθ = pinv(Hθ_inv)
+    
+    # explicit bounds
+    boundst = sqrt.(eigvals(Ht_inv))
+    boundsθ = abs.(asin.(min.(1.,sqrt.(eigvals(Hθ_inv)))))*180/π
+    if quat
+        boundsθ *= 2
+    end
+
+    return (Ht, Hθ), (boundst, boundsθ)
+end
+
+
+"""
 Uncertainty bound from "Object Pose Estimation with Statistical Guarantees"
 
 Maximize distance to PURSE while remaining in PURSE.
@@ -23,6 +64,8 @@ function purse_bounds(center, y, r, b, camK; p=2, order=2, silent=false)
 
     return purse_bounds(center, q_front, q_backproj, q_eqs; order=order, silent=silent)
 end
+
+purse_bounds(center, prob; p=2, order=2, silent=false) = purse_bounds(center, prob.y, prob.r, prob.b, prob.camK; p=p, order=order, silent=silent)
 
 function purse_bounds(center, q_front, q_backproj, q_eqs; order=2, silent=false)
     dim = length(center)

@@ -27,14 +27,14 @@ include("load_data.jl")
 export get_problem, calibrate_lp, load_keypoint_data
 
 include("pose_estimation.jl")
-export gaussianpose, ransagpose
+export gaussianpose, ransagpose, maxmarginpose
 
 include("uncertainty_set.jl")
 export sample_set
 include("uncertainty_bounds.jl")
 export bounding_ellipse, bounding_sphere, bounding_ellipse_quat
 include("explicit_bounds.jl")
-export purse_bounds, refine_bbox
+export purse_bounds, refine_bbox, project_ellipse
 export grcc_bounds
 
 include("datasets/poses.jl")
