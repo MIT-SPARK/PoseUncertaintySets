@@ -37,8 +37,6 @@ p_pose, img = plot_image(image_parent, frame)
 @time (p_pose, seg) = plot_mask!(p_pose, img, cadpath, object_id, (R_est, t_est), camK; lazy=false)
 plot_outline!(p_pose, img, seg)
 
-error("hi")
-
 # plot uncertainty (sampled from pose uncertainty set)
 p = Plots.plot()
 S_R, S_t = sample_set(prob; method="ransag", T=1000)
