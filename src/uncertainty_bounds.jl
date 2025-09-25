@@ -75,46 +75,13 @@ function bounding_ellipse(center, q_front, q_backproj, q_eqs; solver=Mosek.Optim
     # full 12 x 12
     dim = size(q_front[1].H,1)
     @variable(model, H0[1:dim,1:dim] ∈ PSDCone())
-    # @variable(model, h0 ≥ 0)
-    # H0 = diagm(ones(dim))*h0
-    # H0 = [zeros(9,12); zeros(3,9) diagm(ones(3))*h0]
-
-    # rotation and position independent
-    # @variable(model, H0_r[1:9,1:9] ∈ PSDCone())
-    # @variable(model, H0_p[1:3,1:3] ∈ PSDCone())
-    # H0 = [H0_r zeros(9,3); zeros(3,9) H0_p]
-    # H0 = [zeros(9,9) zeros(9,3); zeros(3,9) H0_p]
-    # H0 = [zeros(4,4) zeros(4,3); zeros(3,4) H0_p]
-    # H0 = [H0_r zeros(9,3); zeros(3,9) zeros(3,3)]
-
-    # diagonal
-    # @variable(model, r_H0[1:12] .>= 0)
-    # H0 = diagm(r_H0)
 
     # objective: max logdet(H0)
-    # use auxillary variable
     @objective(model, Max, log_det_H0)
     @constraint(model, [log_det_H0; 1; triangle_vec(H0)] in MOI.LogDetConeTriangle(dim))
-    # @constraint(model, [log_det_H0; triangle_vec(H0)] in MOI.RootDetConeTriangle(dim)) # alt logdet cone
-    # @constraint(model, H0[end-2:end,end-2:end] - log_det_H0*diagm(ones(3)) >= 0, PSDCone()) # max minimum eigenvalue
-
-    # alt objective
-    # @objective(model, Max, tr(H0))
+    # @constraint(model, [log_det_H0; triangle_vec(H0)] in MOI.RootDetConeTriangle(dim)) # alt objective: rootdetcone
 
     # build and constrain M
-    # q0 = x'*H0*x + 2(-H0*c)'*x + c'*H0*c <= 1
-    # M = -[H0  -H0*center;  (-H0*center)'  center'*H0*center-1]
-    # for (i_bp,q) in enumerate(q_backproj)
-    #     i = i_bp
-    #     M += [λ[i]*q.H  λ[i]*q.c;  λ[i]*q.c'  λ[i]*q.d]
-    # end
-    # for (i_fc,q) in enumerate(q_front)
-    #     i = i_fc + length(q_backproj)
-    #     M += [λ[i]*q.H  λ[i]*q.c;  λ[i]*q.c'  λ[i]*q.d]
-    # end
-    # for (i,q) in enumerate(q_eqs)
-    #     M += [η[i]*q.H  η[i]*q.c;  η[i]*q.c'  η[i]*q.d]
-    # end
     M = -[center'*H0*center-1  (-H0*center)'; -H0*center  H0]
     for (i_bp,q) in enumerate(q_backproj)
         i = i_bp
@@ -453,7 +420,8 @@ function bounding_ellipse_quat(center, q_backproj, q_front, q_eqs; order=2, sile
     # add shape variable `H` (density must match `Ĥ`)
     @variable(model, H[1:7,1:7] ∈ PSDCone())
     # @variable(model, Hp[1:3,1:3] ∈ PSDCone())
-    # H = [zeros(4,7); zeros(3,4) Hp]
+    # @variable(model, Hq[1:4,1:4] ∈ PSDCone())
+    # H = [Hq zeros(4,3); zeros(3,4) Hp]
     # @variable(model, h >= 0); H = diagm(h*ones(7))
     shape_mat = -[(center'*H*center - 1)  center'*H; H*center H] # with -1
     shapeΔ = triangle_vec(shape_mat)
@@ -512,4 +480,118 @@ function bounding_ellipse_quat(center, q_backproj, q_front, q_eqs; order=2, sile
     end
 
     return value.(H), gap, termination_status(model)#, X
+end
+
+
+
+#####################
+# Ablation: bounding ellipse with rotation / translation only
+"""
+Compute bounding ellipse for rotation and translation separately.
+
+`rt_weights`: rotation ellipse, translation ellipse (vector of weights)
+"""
+function bounding_ellipse_separated(center, q_front, q_backproj, q_eqs, rt_weights; solver=Mosek.Optimizer, order=1, silent=false)
+    (order == 1) || error("order > 1 not supported.")
+    (sum(rt_weights) > 0) || error("specify rotation and/or translation.")
+
+    # JuMP model
+    model = Model(solver)
+    if silent
+        set_silent(model)
+    end
+    @variable(model, log_det_H0)
+    @variable(model, λ[1:length(q_front) + length(q_backproj)] .>= 0)
+    @variable(model, η[1:length(q_eqs)])
+
+    # full 12 x 12
+    dim = size(q_front[1].H,1)
+    @variable(model, H0[1:dim,1:dim] ∈ PSDCone())
+
+    # rotation and position independent
+    if rt_weights[1] > 0
+        @variable(model, H0_r[1:9,1:9] ∈ PSDCone())
+        @variable(model, log_det_Hr)
+        @constraint(model, [log_det_Hr; 1; triangle_vec(H0_r)] in MOI.LogDetConeTriangle(9))
+    else
+        H0_r = zeros(9,9)
+        log_det_Hr = 0.
+    end
+    if rt_weights[2] > 0
+        @variable(model, H0_p[1:3,1:3] ∈ PSDCone())
+        @variable(model, log_det_Hp)
+        @constraint(model, [log_det_Hp; 1; triangle_vec(H0_p)] in MOI.LogDetConeTriangle(3))
+    else
+        H0_p = zeros(3,3)
+        log_det_Hp = 0.
+    end
+    H0 = [H0_r zeros(9,3); zeros(3,9) H0_p]
+
+    # objective: max logdet(H0_r) + logdet(H0_p)
+    @objective(model, Max, rt_weights[1]*log_det_Hr + rt_weights[2]*log_det_Hp)
+
+    # build and constrain M
+    M = -[center'*H0*center-1  (-H0*center)'; -H0*center  H0]
+    for (i_bp,q) in enumerate(q_backproj)
+        i = i_bp
+        M += [λ[i]*q.d  λ[i]*q.c';  λ[i]*q.c  λ[i]*q.H]
+    end
+    for (i_fc,q) in enumerate(q_front)
+        i = i_fc + length(q_backproj)
+        M += [λ[i]*q.d  λ[i]*q.c';  λ[i]*q.c  λ[i]*q.H]
+    end
+    for (i,q) in enumerate(q_eqs)
+        M += [η[i]*q.d  η[i]*q.c';  η[i]*q.c  η[i]*q.H]
+    end
+    @constraint(model, psdcon, M >= 0, PSDCone())
+
+    # Solve with JuMP
+    optimize!(model)
+
+    # this isn't really the gap, it's more of a proxy for the suboptimality.
+    X = dual(model[:psdcon])
+    gap = sum(eigvals(X) .> 1e-2) - 1
+
+    if !is_solved_and_feasible(model)
+        gap = -1
+        silent || @warn "[bounding_ellipse_separated] Solver terminated with status $(termination_status(model))"
+    end
+    H0_val = value.(H0)
+
+    return (H0_val, gap, termination_status(model))
+end
+
+function bounding_ellipse_separated(center, y, r, b, camK, rt_weights; p=2, solver=Mosek.Optimizer, order=1, silent=false)
+    (p == 2 || p == Inf) || error("only accepts `p=2` or `p=Inf`")
+
+    if p == 2
+        q_front, q_backproj = uncertaintyset_l2(y, r, b, camK)
+        q_eqs = SO3_constraints()
+    else
+        if !silent
+            @warn "redundant constraints for ∞-norm not optimized."
+        end
+        ## Rotation Version
+        q_front, q_backproj = uncertaintyset_linf_R(y, r, b, camK)
+        q_new = []
+        # TODO: fix this it is slow!
+        for q1 in q_backproj, q2 in q_backproj
+            H = -q1.c*q2.c'
+            H += H'
+            push!(q_new, Quadratic(H, zeros(12), 0.)) # ≤ 0
+        end
+        q_front = [q_front; q_new]
+        q_eqs = SO3_constraints()
+
+        ## Quaternion Version
+        # q_front, q_backproj = uncertaintyset_linf_q(y, r, b, camK)
+        # q_eqs = q_constraints()
+    end
+
+    return bounding_ellipse_separated(center, q_front, q_backproj, q_eqs, rt_weights; solver=solver, order=order, silent=silent)
+end
+
+
+function bounding_ellipse_separated(center, prob, rt_weights; solver=Mosek.Optimizer, order=1, silent=false)
+    return bounding_ellipse_separated(center, prob.y, prob.r, prob.b, prob.camK, rt_weights; p=prob.p, solver=solver, order=order, silent=silent)
 end

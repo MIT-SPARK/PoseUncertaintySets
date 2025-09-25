@@ -1,4 +1,4 @@
-# Quick script for comparison
+# Quick script for comparison with MATLAB code.
 
 using Serialization
 using DataFrames

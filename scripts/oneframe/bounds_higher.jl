@@ -1,4 +1,5 @@
 ## Generate successively higher order bounds
+# this script currently does not work (need to return X in bounding_ellipse_quat).
 # 
 # Lorenzo Shaikewitz, 8/14/2025
 
