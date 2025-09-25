@@ -32,6 +32,29 @@ function ellipse_to_surf(A, c, grid_pts=100)
 end
 
 
+function ellipse_to_surf2(H, c, grid_pts=50)
+    # Eigen decomposition
+    vals, vecs = eigen(H)
+    axes = 1 ./ sqrt.(vals)
+    
+    # sphere parameterization
+    u = range(0, 2π; length=grid_pts)
+    v = range(0, π; length=grid_pts)
+    x = [cos(ui)*sin(vj) for ui in u, vj in v]
+    y = [sin(ui)*sin(vj) for ui in u, vj in v]
+    z = [cos(vj) for ui in u, vj in v]
+    
+    # scale, rotate, and shift
+    pts = vecs * Diagonal(axes) * hcat(vec(x), vec(y), vec(z))'
+    pts .+= c
+    
+    X = reshape(pts[1,:], grid_pts, grid_pts)
+    Y = reshape(pts[2,:], grid_pts, grid_pts)
+    Z = reshape(pts[3,:], grid_pts, grid_pts)
+    return X, Y, Z
+end
+
+
 """
     ellipse_to_surf_nd(A, c, num_pts=1e4)
 

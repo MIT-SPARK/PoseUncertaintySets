@@ -1,6 +1,8 @@
 ## A simple demo of pose & uncertainty estimation
 # using the S-Lemma method, rotation matrix form
 # this version works best for FIRST ORDER
+## TODO: also include data--min working example!
+## probably put data folder in repo.
 # 
 # Lorenzo Shaikewitz, 9/24/2025
 
@@ -13,12 +15,13 @@ using PoseUncertaintySets
 using SimpleRotations
 
 ## Parameters
+plot = true
 # dataset / object / image frame
 dataset = "lmo" # ["lmo", "ycbv", "cast"]
 object_id = 9
 frame = 11
 # relaxation order / confidence / keypoint uncertainty norm
-estorder = 1
+sdporder = 1
 α = 0.1
 p = 2 # options: [Inf, 2]
 
@@ -30,17 +33,17 @@ R, t, gap_pose, status_pose = gaussianpose(prob; silent=true, order=2)
 
 
 ## S-Lemma approach
-println("Starting S-Lemma (order $estorder)...")
+println("Starting S-Lemma (order $sdporder)...")
 # joint uncertainty ellipse
-out = @timed bounding_ellipse([vec(R); t], prob; order=estorder, silent=false)
+out = @timed bounding_ellipse([vec(R); t], prob; order=sdporder, silent=false)
 H, gap, status = out.value
 time_slem = out.time - out.compile_time
 # marginalize
 (Ht, Hθ), (boundst, boundsθ) = project_ellipse(H, R)
 
 ## RANSAG approach
-println("Starting RANSAG (order $estorder)...")
-out = @timed purse_bounds([vec(R); t], prob; order=estorder, silent=false)
+println("Starting RANSAG (order $sdporder)...")
+out = @timed purse_bounds([vec(R); t], prob; order=sdporder, silent=false)
 boundt_ransag, gapt_ransag, boundθ_ransag, gapθ_ransag, status_ransag = out.value
 time_ransag = out.time - out.compile_time
 
@@ -69,5 +72,54 @@ println("")
 display(df)
 
 # draw s-lemma ellipse results
-## TODO: also include data--min working example!
-## probably put data folder in repo.
+if plot
+    Plots.plotlyjs()
+    # rotation ellipse
+    plotR = Plots.scatter([0],[0],[0], label="center", title="Rotation", ratio=1, colorbar=false)
+    Plots.surface!(ellipse_to_surf2(Hθ, zeros(3)), alpha=0.6, label="order $sdporder", c=2)
+    Plots.surface!(ellipse_to_surf2(sin(boundθ_ransag*π/180 / 2)*diagm(ones(3)), zeros(3)), alpha=0.6, label="RANSAG", c=3)
+
+    # translation ellipse
+    plott = Plots.scatter([t[1]],[t[2]],[t[3]], label="center", title="Translation", ratio=1, colorbar=false)
+    Plots.surface!(ellipse_to_surf2(Ht, t, 100), alpha=0.6, label="order $sdporder", c=2)
+    Plots.surface!(ellipse_to_surf2(boundt_ransag*diagm(ones(3)), t), alpha=0.6, label="RANSAG", c=3)
+
+    # add samples
+    S_R, S_t = sample_set(prob; method="ransag", T=1000)
+    axangs = rotm2axang.([Rs*R' for Rs in S_R])
+    ωsinθ = reduce(hcat,[ω*sin(θ) for (ω, θ) in axangs])
+    Plots.scatter3d!(plotR, eachrow(ωsinθ)..., label="samples")
+    S_t = reduce(hcat, S_t)
+    Plots.scatter!(plott, eachrow(S_t)..., label="samples")
+    Plots.scatter!(plott, [0],[0],[0],label="camera")
+
+    Plots.plot(plotR, plott)
+end
+
+# if plot
+#     Plots.plotlyjs()
+#     # rotation ellipse
+#     plotR = Plots.scatter([0],[0],[0], label="center", title="Rotation")
+#     surf = ellipse_to_surf(Hθ, zeros(3), 100)
+#     Plots.scatter!(surf[1,:], surf[2,:], surf[3,:], label="order $sdporder")
+#     surf = ellipse_to_surf(sin(boundθ_ransag*π/180)*diagm(ones(3)), zeros(3), 100)
+#     Plots.scatter!(surf[1,:], surf[2,:], surf[3,:], label="RANSAG")
+
+#     # translation ellipse
+#     plott = Plots.scatter([t[1]],[t[2]],[t[3]], label="center", title="Translation")
+#     surf = ellipse_to_surf(Ht, t, 100)
+#     Plots.scatter!(surf[1,:], surf[2,:], surf[3,:], label="order $sdporder")
+#     surf = ellipse_to_surf(boundt_ransag*diagm(ones(3)), t, 100)
+#     Plots.scatter!(surf[1,:], surf[2,:], surf[3,:], label="RANSAG")
+
+#     # add samples
+#     S_R, S_t = sample_set(prob; method="ransag", T=1000)
+#     axangs = rotm2axang.([Rs*R' for Rs in S_R])
+#     ωsinθ = reduce(hcat,[ω*sin(θ) for (ω, θ) in axangs])
+#     Plots.scatter3d!(plotR, eachrow(ωsinθ)..., label="samples")
+#     S_t = reduce(hcat, S_t)
+#     Plots.scatter!(plott, eachrow(S_t)..., label="samples")
+#     Plots.scatter!(plott, [0],[0],[0],label="camera")
+
+#     Plots.plot(plotR, plott)
+# end
