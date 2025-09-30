@@ -71,7 +71,7 @@ df = [df_slem df_ransag]
 println("")
 display(df)
 
-# draw s-lemma ellipse results
+# draw ellipse results
 if plot
     Plots.plotlyjs()
     # rotation ellipse

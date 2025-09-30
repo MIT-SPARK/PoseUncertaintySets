@@ -26,12 +26,14 @@ centeri = [rotm2quat(Ri); ti]
 H_trace = []
 status_trace = []
 X_trace = []
+S_trace = []
 for order = 2:5
-    H, gap, status, X = bounding_ellipse_quat(centeri, probi; order=order, silent=false)
+    H, gap, status, X, S = bounding_ellipse_quat(centeri, probi; order=order, silent=false)
     push!(H_trace, H)
     push!(status_trace, status)
     push!(X_trace, X)
+    push!(S_trace, S)
 end
 
-data = Dict("X"=>X_trace, "H"=>H_trace)
+data = Dict("X"=>X_trace, "S"=>S_trace, "H"=>H_trace)
 serialize("bounds_higher", data)

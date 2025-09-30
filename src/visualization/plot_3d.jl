@@ -45,13 +45,32 @@ function ellipse_to_surf2(H, c, grid_pts=50)
     z = [cos(vj) for ui in u, vj in v]
     
     # scale, rotate, and shift
-    pts = vecs * Diagonal(axes) * hcat(vec(x), vec(y), vec(z))'
+    pts = vecs * diagm(axes) * hcat(vec(x), vec(y), vec(z))'
     pts .+= c
     
     X = reshape(pts[1,:], grid_pts, grid_pts)
     Y = reshape(pts[2,:], grid_pts, grid_pts)
     Z = reshape(pts[3,:], grid_pts, grid_pts)
     return X, Y, Z
+end
+
+function ellipse_to_surf_2d(H, c, grid_pts=50)
+    # Eigen decomposition
+    vals, vecs = eigen(H)
+    axes = 1 ./ sqrt.(vals)
+    
+    # sphere parameterization
+    u = range(0, 2π; length=grid_pts)
+    x = [cos(ui) for ui in u]
+    y = [sin(ui) for ui in u]
+    
+    # scale, rotate, and shift
+    pts = vecs * diagm(axes) * hcat(vec(x), vec(y))'
+    pts .+= c
+    
+    X = pts[1,:]
+    Y = pts[2,:]
+    return X, Y
 end
 
 

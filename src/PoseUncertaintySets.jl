@@ -43,9 +43,12 @@ include("datasets/bounds.jl")
 export dataset_ransag_bounds, dataset_slem
 
 include("visualization/plot_3d.jl")
-export ellipse_to_surf, plot_bbox!, plot_cdf!, ellipse_to_surf_nd, ellipse_to_surf2
+export ellipse_to_surf, plot_bbox!, plot_cdf!, ellipse_to_surf_nd, ellipse_to_surf2, ellipse_to_surf_2d
 include("visualization/image_tools.jl")
 export plot_image, plot_keypoints!, plot_3d_keypoints!, plot_mask!, plot_outline!
 export get_lazy_mask, get_mask, plot_frame!
+
+include("example_2d.jl")
+export bound_2d
 
 end # module PoseUncertaintySets

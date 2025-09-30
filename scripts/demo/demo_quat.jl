@@ -69,7 +69,7 @@ println("")
 display(df)
 # 0 gap means tight, though the threshold is pretty permissive
 
-# draw s-lemma ellipse results
+# draw ellipse results
 if plot
     Plots.plotlyjs()
     # rotation ellipse
@@ -90,6 +90,8 @@ if plot
     S_t = reduce(hcat, S_t)
     Plots.scatter!(plott, eachrow(S_t)..., label="samples")
     Plots.scatter!(plott, [0],[0],[0],label="camera")
+
+    # draw on image (TODO)
 
     Plots.plot(plotR, plott)
 end

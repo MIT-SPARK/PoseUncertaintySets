@@ -479,7 +479,7 @@ function bounding_ellipse_quat(center, q_backproj, q_front, q_eqs; order=2, sile
         silent || @warn "[bounding_ellipse_quat] Returned status $(termination_status(model)). Results may not be lower bound!"
     end
 
-    return value.(H), gap, termination_status(model)#, X
+    return value.(H), gap, termination_status(model)#, X, value.(c[2][1])
 end
 
 
