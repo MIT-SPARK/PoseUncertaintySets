@@ -40,7 +40,7 @@ time_slem = out.time - out.compile_time
 
 ## RANSAG approach
 println("Starting RANSAG (order $sdporder)...")
-out = @timed purse_bounds([vec(R); t], prob; order=sdporder, silent=false)
+out = @timed purse_bounds([vec(R); t], prob; p=2, order=sdporder, silent=false)
 boundt_ransag, gapt_ransag, boundθ_ransag, gapθ_ransag, status_ransag = out.value
 time_ransag = out.time - out.compile_time
 
@@ -54,20 +54,17 @@ df_slem   = TableCol("S-Lemma", "time"=>time_slem,
     "vol_t" => 4/3*π*prod(boundst),
     "vol_θ" => 4/3*π*prod(boundsθ),
     "gtcov" => ([rotm2quat(gt[1]) - rotm2quat(R); gt[2] - t]'*H*[rotm2quat(gt[1]) - rotm2quat(R); gt[2] - t] ≤ 1),
-    "status"=>string(status), "gap"=>gap,
-    "status2"=>"-", "gap2"=>"-")
+    "status"=>string(status), "status2"=>"-")
 
 df_ransag = TableCol("RANSAG" , "time"=>time_ransag, 
     "vol_t" => 4/3*π*boundt_ransag^3,
     "vol_θ" => 4/3*π*boundθ_ransag^3,
     "gtcov" => (norm(t - gt[2]) ≤ boundt_ransag) && (roterror(R, project2SO3(gt[1])) ≤ boundθ_ransag),
-    "status"=>string(status_ransag[1]), "gap"=>gapt_ransag, 
-    "status2" => string(status_ransag[2]), "gap2"=>gapθ_ransag)
+    "status"=>string(status_ransag[1]), "status2" => string(status_ransag[2]))
 
 df = [df_slem df_ransag]
 println("")
 display(df)
-# 0 gap means tight, though the threshold is pretty permissive
 
 # draw ellipse results
 if plot
@@ -75,12 +72,12 @@ if plot
     # rotation ellipse
     plotR = Plots.scatter([0],[0],[0], label="center", title="Rotation", ratio=1, colorbar=false)
     Plots.surface!(ellipse_to_surf2(Hθ, zeros(3)), alpha=0.6, label="order $sdporder", c=2)
-    Plots.surface!(ellipse_to_surf2(sin(boundθ_ransag*π/180 / 2)*diagm(ones(3)), zeros(3)), alpha=0.6, label="RANSAG", c=3)
+    Plots.surface!(ellipse_to_surf2(1/(sin(boundθ_ransag*π/180 / 2)^2)*diagm(ones(3)), zeros(3)), alpha=0.6, label="RANSAG", c=3)
 
     # translation ellipse
     plott = Plots.scatter([t[1]],[t[2]],[t[3]], label="center", title="Translation", ratio=1, colorbar=false)
     Plots.surface!(ellipse_to_surf2(Ht, t, 100), alpha=0.6, label="order $sdporder", c=2)
-    Plots.surface!(ellipse_to_surf2(boundt_ransag*diagm(ones(3)), t), alpha=0.6, label="RANSAG", c=3)
+    Plots.surface!(ellipse_to_surf2(1/(boundt_ransag^2)*diagm(ones(3)), t), alpha=0.6, label="RANSAG", c=3)
 
     # add samples
     S_R, S_t = sample_set(prob; method="ransag", T=1000)

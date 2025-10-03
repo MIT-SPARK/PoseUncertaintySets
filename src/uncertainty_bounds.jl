@@ -100,12 +100,10 @@ function bounding_ellipse(center, q_front, q_backproj, q_eqs; solver=Mosek.Optim
     # Solve with JuMP
     optimize!(model)
 
-    # TODO: not a great way to compute the gap is it?
-    X = dual(model[:psdcon])
-    gap = sum(eigvals(X) .> 1e-2) - 1
+    # don't use the gap
+    gap = -1
 
     if !is_solved_and_feasible(model)
-        gap = -1
         silent || @warn "[bounding_ellipse] Solver terminated with status $(termination_status(model))"
     end
     H0_val = value.(H0)
@@ -230,18 +228,10 @@ function bounding_ellipse_higherorder(center, q_front, q_backproj, q_eqs; solver
     set_optimizer(model, solver)
     optimize!(model)
 
-    # TODO: less sloppy
-    c = [all_constraints(model, t...) for t in list_of_constraint_types(model)]
-    X = dual(c[2][1])
-    # this appears to be a focal point? It is certainly not an extreme point
-    gap = 1
-    if rank(X[1:13,1:13],1e-2) == 1
-        gap = 0
-    end
+    # don't use the gap return
+    gap = -1
 
-    # TODO: I actually don't care about SLOW_PROGRESS
     if !is_solved_and_feasible(model)
-        gap = -1
         silent || @warn "[bounding_ellipse_higherorder] Returned status $(termination_status(model)). Results may not be lower bound!"
     end
 
@@ -403,7 +393,7 @@ function bounding_ellipse_quat(center, q_backproj, q_front, q_eqs; order=2, sile
         push!(eq, [vars;1]'*[q.H  q.c;  q.c'  q.d]*[vars;1])
     end
 
-    # constrain to rotations within 90°
+    # constrain to quaternions within 90°
     push!(ineq, q'*center[1:4])
 
     # use TSSOS to generate redundant constraints
@@ -464,18 +454,10 @@ function bounding_ellipse_quat(center, q_backproj, q_front, q_eqs; order=2, sile
     set_optimizer(model, Mosek.Optimizer)
     optimize!(model)
 
-    # TODO: less sloppy
-    c = [all_constraints(model, t...) for t in list_of_constraint_types(model)]
-    X = dual(c[2][1])
-    # this appears to be a focal point? It is certainly not an extreme point
-    gap = 1
-    if rank(X[1:8,1:8],1e-2) == 1
-        gap = 0
-    end
+    # don't use gap return
+    gap = -1
 
-    # TODO: I actually don't care about SLOW_PROGRESS
     if !is_solved_and_feasible(model)
-        gap = -1
         silent || @warn "[bounding_ellipse_quat] Returned status $(termination_status(model)). Results may not be lower bound!"
     end
 
@@ -548,12 +530,8 @@ function bounding_ellipse_separated(center, q_front, q_backproj, q_eqs, rt_weigh
     # Solve with JuMP
     optimize!(model)
 
-    # this isn't really the gap, it's more of a proxy for the suboptimality.
-    X = dual(model[:psdcon])
-    gap = sum(eigvals(X) .> 1e-2) - 1
-
+    gap = -1
     if !is_solved_and_feasible(model)
-        gap = -1
         silent || @warn "[bounding_ellipse_separated] Solver terminated with status $(termination_status(model))"
     end
     H0_val = value.(H0)

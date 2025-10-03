@@ -77,12 +77,12 @@ if plot
     # rotation ellipse
     plotR = Plots.scatter([0],[0],[0], label="center", title="Rotation", ratio=1, colorbar=false)
     Plots.surface!(ellipse_to_surf2(Hθ, zeros(3)), alpha=0.6, label="order $sdporder", c=2)
-    Plots.surface!(ellipse_to_surf2(sin(boundθ_ransag*π/180 / 2)*diagm(ones(3)), zeros(3)), alpha=0.6, label="RANSAG", c=3)
+    Plots.surface!(ellipse_to_surf2(1/(sin(boundθ_ransag*π/180)^2)*diagm(ones(3)), zeros(3)), alpha=0.6, label="RANSAG", c=3)
 
     # translation ellipse
     plott = Plots.scatter([t[1]],[t[2]],[t[3]], label="center", title="Translation", ratio=1, colorbar=false)
     Plots.surface!(ellipse_to_surf2(Ht, t, 100), alpha=0.6, label="order $sdporder", c=2)
-    Plots.surface!(ellipse_to_surf2(boundt_ransag*diagm(ones(3)), t), alpha=0.6, label="RANSAG", c=3)
+    Plots.surface!(ellipse_to_surf2(1/(boundt_ransag^2)*diagm(ones(3)), t), alpha=0.6, label="RANSAG", c=3)
 
     # add samples
     S_R, S_t = sample_set(prob; method="ransag", T=1000)

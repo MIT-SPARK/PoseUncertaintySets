@@ -56,7 +56,19 @@ function purse_bounds(center, y, r, b, camK; p=2, order=2, silent=false)
         q_eqs = SO3_constraints()
     else
         # TODO: need redundant constraints for this to work
+        if !silent
+            @warn "redundant constraints for ∞-norm not optimized."
+        end
+        ## Rotation Version
         q_front, q_backproj = uncertaintyset_linf_R(y, r, b, camK)
+        q_new = []
+        # TODO: fix this it is slow!
+        for q1 in q_backproj, q2 in q_backproj
+            H = -q1.c*q2.c'
+            H += H'
+            push!(q_new, Quadratic(H, zeros(12), 0.)) # ≤ 0
+        end
+        q_front = [q_front; q_new]
         q_eqs = SO3_constraints()
         # q_front, q_backproj = uncertaintyset_linf_q(y, r, b, camK)
         # q_eqs = q_constraints()
