@@ -160,5 +160,53 @@ function bound_2d_dual(center, As, Bs=[]; order=1, silent=false)
     # solve!
     optimize!(model)
 
-    return -dual(model[:conS]), termination_status(model), dual(VariableInSetRef(X)), value.(X)
+    return -dual(model[:conS]), termination_status(model), dual(VariableInSetRef(X)), value.(X), value.(S)
+end
+
+
+function bound_2d_center(As, Bs=[]; order=1, silent=false)
+    (order == 1) || error("Not implemented yet!")
+
+    # JuMP model
+    model = Model(Mosek.Optimizer)
+    if silent
+        set_silent(model)
+    end
+    @variable(model, log_det_Hinv)
+    @variable(model, λ[1:length(As)] .>= 0)
+    if length(Bs) > 0
+        @variable(model, η[1:length(Bs)])
+    end
+    @variable(model, Hinv[1:2,1:2] ∈ PSDCone())
+    @variable(model, center[1:2])
+    @variable(model, Q[1:3,1:3] ∈ PSDCone())
+
+    # objective
+    @objective(model, Min, tr(Hinv))
+    # can't do a log det objective because logdet is concave.
+    # @objective(model, Min, log_det_Hinv)
+    # @constraint(model, [log_det_Hinv; 1; triangle_vec(Hinv)] ∈ MOI.LogDetConeTriangle(2))
+
+    # build M
+    M = [1. zeros(2)'; zeros(2,3)] - Q
+    for (i,A) in enumerate(As)
+        M += λ[i]*A
+    end
+    for (i,B) in enumerate(Bs)
+        M += η[i]*B
+    end
+    @constraint(model, psdcon, M >= 0, PSDCone())
+
+    # build Q
+    cd = [-center  diagm(ones(2))]
+    @constraint(model, [Hinv  cd; cd'  Q] >= 0, PSDCone())
+
+    # solve!
+    optimize!(model)
+
+    display(solution_summary(model))
+    # printstyled("\nEigvals\n",underline=true)
+    # display(["Dual"  "Dual Dual"; eigvals(value.(M))  eigvals(dual(model[:psdcon]))])
+
+    return inv(value.(Hinv)), termination_status(model), value.(center)
 end

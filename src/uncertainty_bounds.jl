@@ -595,3 +595,205 @@ end
 function bounding_ellipse_separated(center, prob, rt_weights; solver=Mosek.Optimizer, order=1, silent=false)
     return bounding_ellipse_separated(center, prob.y, prob.r, prob.b, prob.camK, rt_weights; p=prob.p, solver=solver, order=order, silent=silent)
 end
+
+
+#####################################
+# find the center and ellipse jointly
+# doesn't work too well.
+
+"""
+Also finds optimal center
+"""
+function bounding_ellipse_center(y, r, b, camK; p=2, solver=Mosek.Optimizer, order=1, silent=false)
+    (p == 2 || p == Inf) || error("only accepts `p=2` or `p=Inf`")
+
+    if p == 2
+        q_front, q_backproj = uncertaintyset_l2(y, r, b, camK)
+        q_eqs = SO3_constraints()
+    else
+        if !silent
+            @warn "redundant constraints for ∞-norm not optimized."
+        end
+        ## Rotation Version
+        q_front, q_backproj = uncertaintyset_linf_R(y, r, b, camK)
+        q_new = []
+        # TODO: fix this it is slow!
+        for q1 in q_backproj, q2 in q_backproj
+            H = -q1.c*q2.c'
+            H += H'
+            push!(q_new, Quadratic(H, zeros(12), 0.)) # ≤ 0
+        end
+        q_front = [q_front; q_new]
+        q_eqs = SO3_constraints()
+
+        ## Quaternion Version
+        # q_front, q_backproj = uncertaintyset_linf_q(y, r, b, camK)
+        # q_eqs = q_constraints()
+    end
+
+    return bounding_ellipse_center(q_front, q_backproj, q_eqs; solver=solver, order=order, silent=silent)
+end
+
+
+function bounding_ellipse_center(prob; solver=Mosek.Optimizer, order=1, silent=false)
+    return bounding_ellipse_center(prob.y, prob.r, prob.b, prob.camK; p=prob.p, solver=solver, order=order, silent=silent)
+end
+
+
+function bounding_ellipse_center(q_front, q_backproj, q_eqs; solver=Mosek.Optimizer, order=1, silent=false)
+    (order == 1) || error("Not implemented yet")
+
+    # JuMP model
+    model = Model(solver)
+    if silent
+        set_silent(model)
+    end
+    @variable(model, log_det_Hinv)
+    @variable(model, λ[1:length(q_front) + length(q_backproj)] .>= 0)
+    @variable(model, η[1:length(q_eqs)])
+
+    # full 12 x 12
+    dim = size(q_front[1].H,1)
+    @variable(model, Hinv[1:dim,1:dim] ∈ PSDCone())
+    @variable(model, center[1:dim])
+    @variable(model, Q[1:dim+1,1:dim+1] ∈ PSDCone())
+
+    # objective
+    @objective(model, Min, tr(Hinv))
+
+    # build and constrain M
+    M = [1. zeros(dim)'; zeros(dim,dim+1)] - Q
+    for (i_bp,q) in enumerate(q_backproj)
+        i = i_bp
+        M += [λ[i]*q.d  λ[i]*q.c';  λ[i]*q.c  λ[i]*q.H]
+    end
+    for (i_fc,q) in enumerate(q_front)
+        i = i_fc + length(q_backproj)
+        M += [λ[i]*q.d  λ[i]*q.c';  λ[i]*q.c  λ[i]*q.H]
+    end
+    for (i,q) in enumerate(q_eqs)
+        M += [η[i]*q.d  η[i]*q.c';  η[i]*q.c  η[i]*q.H]
+    end
+    @constraint(model, psdcon, M >= 0, PSDCone())
+
+    # build Q
+    cd = [-center  diagm(ones(dim))]
+    @constraint(model, [Hinv  cd; cd'  Q] >= 0, PSDCone())
+
+    # Solve with JuMP
+    optimize!(model)
+
+    display(solution_summary(model))
+
+    return inv(value.(Hinv)), termination_status(model), value.(center)
+end
+
+
+
+
+function bounding_ellipse_quat_center(prob; order=2, silent=false)
+    return bounding_ellipse_quat_center(prob.y, prob.r, prob.b, prob.camK; order=order, silent=silent)
+end
+
+function bounding_ellipse_quat_center(y, r, b, camK; order=2, silent=false)
+    q_front, q_backproj = uncertaintyset_linf_q(y, r, b, camK)
+    q_eqs = q_constraints()
+    return bounding_ellipse_quat_center(q_backproj, q_front, q_eqs; order=order, silent=silent)
+end
+
+function bounding_ellipse_quat_center(q_backproj, q_front, q_eqs; order=2, silent=false)
+    @polyvar q[1:4]
+    @polyvar t[1:3]
+    vars = [q; t]
+
+    # sphere objective: minimize with placeholder shape & center
+    # Ĥ = ones(7,7) # could replace with separate q, t term (match `H`)
+    # Ĥ = diagm([1;1;1;1;1;1;1])
+    # W = [ones(7)'*Ĥ*ones(7)  -ones(7)'*Ĥ;  -Ĥ*ones(7)  Ĥ]
+    W = [1 -ones(7)'; -ones(7) ones(7,7)]
+    # Non-1 terms corrected for later
+    obj = -[1;vars]'*W*[1;vars]
+
+    # constraints
+    # expr ≥ 0
+    ineq = Vector{TSSOS.Poly{Float64}}()
+    # expr = 0
+    eq = Vector{TSSOS.Poly{Float64}}()
+
+    # backprojection
+    for (_,q) in enumerate(q_backproj)
+        push!(ineq, -[vars;1]'*[q.H  q.c;  q.c'  q.d]*[vars;1])
+    end
+    # chirality
+    for (_,q) in enumerate(q_front)
+        push!(ineq, -[vars;1]'*[q.H  q.c;  q.c'  q.d]*[vars;1])
+    end
+    # equality (just q² = 1)
+    for (_,q) in enumerate(q_eqs)
+        push!(eq, [vars;1]'*[q.H  q.c;  q.c'  q.d]*[vars;1])
+    end
+
+    # constrain to rotations within 90°
+    # push!(ineq, q'*center[1:4])
+
+    # use TSSOS to generate redundant constraints
+    pop = [obj; ineq; eq]
+    order = order
+    # CS="MD" doesn't make a difference runtime wise
+    opt, sol, data, gap, model = cs_tssos_first(pop, vars, order, numeq=length(eq), TS=false, CS=false, QUIET=silent, solve=false, solution=false, MomentOne=true)
+
+    if silent
+        set_silent(model)
+    end
+
+    ## Modify model
+    # add shape variable `H` (density must match `Ĥ`)
+    @variable(model, Hinv[1:7,1:7] ∈ PSDCone())
+    @variable(model, Q[1:8,1:8] ∈ PSDCone())
+    shape_mat = [1. zeros(7)'; zeros(7,8)] - Q
+    shapeΔ = triangle_vec(shape_mat)
+    # update objective to trace
+    @objective(model, Min, tr(Hinv))
+
+    # remove the `lower` variable
+    delete(model, model[:lower])
+    unregister(model, :lower)
+    # this alone completely removes `lower`
+
+    # get constraints
+    # they are stored as vector so not easy to modify in place
+    co = constraint_object(model[:con])
+    # remove `:con` from model
+    delete(model, model[:con])
+    unregister(model, :con)
+    # modify constraints with constant terms
+    # get PSD variables
+    psdvars = all_variables(model)[1:length(shapeΔ)]
+    shapeΔ = Dict(zip(psdvars, shapeΔ))
+    tvW = Dict(zip(psdvars, abs.(triangle_vec(W)))) # all +1
+    for constraint in co.func
+        if constraint.constant == 0
+            @constraint(model, constraint == 0)
+            continue
+        end
+        var = first(keys(constraint.terms))
+        mult = -constraint.constant
+        # remove constant term
+        constraint.constant = 0
+        # add constraint and correct for mult issues (division may not be necessary anymore)
+        @constraint(model, constraint + mult*shapeΔ[var] / tvW[var] == 0)
+    end
+
+    # add Q constraints
+    @variable(model, center[1:7])
+    cd = [-center  diagm(ones(7))]
+    @constraint(model, [Hinv  cd; cd'  Q] >= 0, PSDCone())
+
+    ## optimize!
+    set_optimizer(model, Mosek.Optimizer)
+    optimize!(model)
+
+    display(solution_summary(model))
+
+    return inv(value.(Hinv)), termination_status(model), value.(center)
+end
