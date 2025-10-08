@@ -360,6 +360,10 @@ end
 
 function bounding_ellipse_quat(center, y, r, b, camK; order=2, silent=false)
     q_front, q_backproj = uncertaintyset_linf_q(y, r, b, camK)
+    # add constraint bounding t
+    tbound = 100. # [m]
+    push!(q_front, Quadratic([zeros(4,7); zeros(3,4) diagm(ones(3))], zeros(7), -tbound))
+
     q_eqs = q_constraints()
     return bounding_ellipse_quat(center, q_backproj, q_front, q_eqs; order=order, silent=silent)
 end
