@@ -16,10 +16,17 @@ import Plots
 
 # this is a cool example: you can see it get tighter up to order 3
 # and maybe a good logo?
-center = [-0.6; -0.2]
+# center = [-0.6; -0.2]
+# A1 = [0 0.5 0; 0.5 1 0; 0 0 1] # x² + y² + x ≤ 0
+# A2 = [0.2 0 1; 0 -0.5 0; 1 0 0] # -0.5x² + 2y + 0.2 ≤ 0
+# A3 = [0 0 -0.5; 0 -1.5 0; -0.5 0 0] # -x² - y ≤ 0
+# As = [A1, A2, A3]
+
+# do AeroAstro logo?
+center = [-0.65; -0.2]
 A1 = [0 0.5 0; 0.5 1 0; 0 0 1] # x² + y² + x ≤ 0
 A2 = [0.2 0 1; 0 -0.5 0; 1 0 0] # -0.5x² + 2y + 0.2 ≤ 0
-A3 = [0 0 -0.5; 0 -1 0; -0.5 0 0] # -x² - y ≤ 0
+A3 = [0.3 0.5 -0.9; 0.5 0 0; -0.9 0 -5] # -x² - y ≤ 0
 As = [A1, A2, A3]
 
 # box
@@ -55,7 +62,7 @@ for order = 1:4
     display(["Dual"  "Dual Dual"; eigvals(M)[1:3]  eigvals(X)[end-2:end]])
 
     # plot solution
-    Plots.plot(ellipse_to_surf_2d(H, center), label=false)
+    Plots.plot(ellipse_to_surf_2d(H, center, 100), label=false)
     Plots.scatter!([center[1]], [center[2]],c=1; label=false)
     # plot constraints
     xs = range(-3,3,length=300)
@@ -80,6 +87,21 @@ end
 ev_ratio = [eigvals(X)[end-1] / eigvals(X)[end] for X in Xs]
 p_evs = Plots.plot(ev_ratio, xlabel="order", ylabel="λ₂/λ₁")
 
+# all on one plot
+p_all = Plots.scatter([center[1]], [center[2]],c=1; label=false)
+# plot constraints
+xs = range(-3,3,length=300)
+ys = range(-3,3,length=300)
+for A in As
+    Plots.contour!(xs, ys, (x,y)->[1;x;y]'*A*[1;x;y], levels=[0], colorbar=false)
+end
+for B in Bs
+    Plots.contour!(xs, ys, (x,y)->[1;x;y]'*B*[1;x;y], levels=[0], colorbar=false)
+end
+for (i,H) in enumerate(Hs)
+    Plots.plot!(ellipse_to_surf_2d(H, center, 100), label="order $i")
+end
+Plots.plot!(xlims=[-1.5,0.5], ylims=(-1,1), aspect_ratio=:equal)
+
 
 Plots.plot(plts...)
-# TODO: plot all on one plot...

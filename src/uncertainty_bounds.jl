@@ -50,6 +50,9 @@ function bounding_ellipse(center, y, r, b, camK; p=2, solver=Mosek.Optimizer, or
         # q_front, q_backproj = uncertaintyset_linf_q(y, r, b, camK)
         # q_eqs = q_constraints()
     end
+    # add constraint bounding t
+    tbound = 100. # [m]
+    push!(q_front, Quadratic([zeros(9,12); zeros(3,9) diagm(ones(3))], zeros(12), -tbound))
 
     return bounding_ellipse(center, q_front, q_backproj, q_eqs; solver=solver, order=order, silent=silent)
 end
@@ -565,6 +568,9 @@ function bounding_ellipse_separated(center, y, r, b, camK, rt_weights; p=2, solv
         # q_front, q_backproj = uncertaintyset_linf_q(y, r, b, camK)
         # q_eqs = q_constraints()
     end
+    # add constraint bounding t
+    tbound = 100. # [m]
+    push!(q_front, Quadratic([zeros(9,12); zeros(3,9) diagm(ones(3))], zeros(12), -tbound))
 
     return bounding_ellipse_separated(center, q_front, q_backproj, q_eqs, rt_weights; solver=solver, order=order, silent=silent)
 end

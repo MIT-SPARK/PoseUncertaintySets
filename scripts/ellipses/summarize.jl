@@ -95,7 +95,7 @@ slem_r = reduce(hcat, slem_r)
 
 
 ## Summarize / plot!
-println("Certificate: $(sum(slem_dict["data"][:,:gaps] .== 1))/$(size(slem_dict["data"],1))")
+# println("Certificate: $(sum(slem_dict["data"][:,:gaps] .== 1))/$(size(slem_dict["data"],1))")
 
 # translation CDF (volume)
 if sdporder == 2

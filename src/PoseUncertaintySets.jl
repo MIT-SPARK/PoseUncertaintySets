@@ -40,7 +40,7 @@ export grcc_bounds
 include("datasets/poses.jl")
 export dataset_pose_est, calc_pose_errors, calc_projection_errors
 include("datasets/bounds.jl")
-export dataset_ransag_bounds, dataset_slem
+export dataset_ransag_bounds, dataset_slem, dataset_slem_separated
 
 include("visualization/plot_3d.jl")
 export ellipse_to_surf, plot_bbox!, plot_cdf!, ellipse_to_surf_nd, ellipse_to_surf2, ellipse_to_surf_2d

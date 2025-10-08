@@ -147,3 +147,84 @@ function dataset_slem(keypoint_data, pose_data, object_id; order=1, quat=false)
 
     return Hs, statuses, times, gaps
 end
+
+
+"""
+    dataset_slem_separated(keypoint_data, pose_data, object_id)
+
+Compute uncertainty ellipsoids on dataset using S-Lemma
+WITH SEPARATE ROTATION AND TRANSLATION OBJECTIVES (two runs)
+
+# Returns
+- `Hs`: bounding ellipse matrices (Dict of matrices)
+- `statuses`: runtime of each stage (Dict of vectors)
+- `times`: runtime of each stage (Dict of vectors)
+"""
+function dataset_slem_separated(keypoint_data, pose_data, object_id; order=1, quat=false)
+    # setup
+    camK = keypoint_data["K"]
+    num_frames = length(keys(pose_data[object_id][1]))
+
+    
+    Hs = Dict{Int, Any}()
+    statuses_r = Dict{Int, Any}()
+    statuses_t = Dict{Int, Any}()
+    times = Dict{Int, Any}()
+
+    println("Starting $num_frames frames...")
+    for frame in sort(collect(keys(pose_data[object_id][1])))
+
+        # frame-specific data
+        r = keypoint_data["r"][frame][object_id]
+        y = keypoint_data["y"][frame][object_id]
+        b = keypoint_data["b"][object_id]
+
+        # eliminate missing measurements
+        y = y[1:2,r .>= 0]
+        y = [y[1:2,:]; ones(size(y,2))']
+        b = b[:, r .>= 0]
+        r = r[r .>= 0]
+
+        if length(r) < 3
+            continue
+        end
+
+        # load pose data
+        R_est = pose_data[object_id][1][frame]
+        t_est = pose_data[object_id][2][frame]
+        if quat
+            center = [rotm2quat(R_est); t_est]
+        else
+            center = [vec(R_est); t_est]
+        end
+
+        # S-Lemma: rotations
+        out = @timed bounding_ellipse_separated(center, y, r, b, camK, [1.; 0]; order=order, silent=true)
+        H_r, _, status_r = out.value
+        time_s = out.time - out.compile_time
+        H_r = H_r[1:9,1:9]
+
+        # S-Lemma: translations
+        out = @timed bounding_ellipse_separated(center, y, r, b, camK, [0; 1.]; order=order, silent=true)
+        H_t, _, status_t = out.value
+        time_s += out.time - out.compile_time
+        H_t = H_t[10:12,10:12]
+
+        Main.@infiltrate
+        
+        # save
+        H = [H_r zeros(9,3); zeros(3,9) H_t] # should preserve downstream parts.
+        Hs[frame] = H
+        statuses_r[frame] = status_r
+        statuses_t[frame] = status_t
+        times[frame] = time_s
+
+        if mod(frame, 10) == 0
+            print("$frame ")
+        end
+    end
+
+    statuses = (statuses_r, statuses_t)
+
+    return Hs, statuses, times
+end
