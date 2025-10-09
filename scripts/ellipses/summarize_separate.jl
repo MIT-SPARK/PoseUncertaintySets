@@ -22,7 +22,7 @@ dataset = "cast"
 object_ids = [1]
 α = 0.1
 p = Inf
-sdporder = 1
+sdporder = 2
 pose = "pnp2"
 
 

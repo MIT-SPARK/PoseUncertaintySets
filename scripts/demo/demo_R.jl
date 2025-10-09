@@ -36,7 +36,7 @@ R, t, gap_pose, status_pose = gaussianpose(prob; silent=true, order=2)
 println("Starting S-Lemma (order $sdporder)...")
 # joint uncertainty ellipse
 out = @timed bounding_ellipse([vec(R); t], prob; order=sdporder, silent=false)
-H, gap, status = out.value
+H, g, status = out.value
 time_slem = out.time - out.compile_time
 # marginalize
 (Ht, Hθ), (boundst, boundsθ) = project_ellipse(H, R)
@@ -57,15 +57,15 @@ df_slem   = TableCol("S-Lemma", "time"=>time_slem,
     "vol_t" => 4/3*π*prod(boundst),
     "vol_θ" => 4/3*π*prod(boundsθ),
     "gtcov" => ([vec(gt[1] - R); gt[2] - t]'*H*[vec(gt[1] - R); gt[2] - t] ≤ 1),
-    "status"=>string(status), "gap"=>gap, 
-    "status2"=>"-", "gap2"=>"-")
+    "status_r"=>string(g), 
+    "status_t"=>string(status))
 
 df_ransag = TableCol("RANSAG" , "time"=>time_ransag, 
     "vol_t" => 4/3*π*boundt_ransag^3,
     "vol_θ" => 4/3*π*boundθ_ransag^3,
     "gtcov" => (norm(t - gt[2]) ≤ boundt_ransag) && (roterror(R, project2SO3(gt[1])) ≤ boundθ_ransag),
-    "status"=>string(status_ransag[1]), "gap"=>gapt_ransag, 
-    "status2" => string(status_ransag[2]), "gap2"=>gapθ_ransag)
+    "status_r"=>string(status_ransag[2]),
+    "status_t" => string(status_ransag[1]))
 
 df = [df_slem df_ransag]
 println("")

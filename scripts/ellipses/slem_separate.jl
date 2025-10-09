@@ -18,7 +18,12 @@ object_ids = [1,5,6,9,8,10,11,12]
 # object_ids = [1]
 α = 0.1
 p = Inf
-order=1
+order = 1
+if order == 2
+    quat = true
+else
+    quat = false
+end
 pose = "pnp2"
 
 cadpath = "../data/$dataset/models_eval/"
@@ -30,13 +35,13 @@ keypoint_data, gt = load_keypoint_data(calibrate_lp, dataset; p=p, α=α)
 poses = deserialize(posepath)["solns"]
 
 
-println("\nStarting S-Lemma (rotation matrix)")
+println("\nStarting S-Lemma (order $order)")
 data = DataFrame()
 ellipses = Dict()
 for object_id in object_ids
     println("\n------------$object_id------------")
     # solve!
-    Hs, statuses, times = dataset_slem_separated(keypoint_data, poses, object_id; order=order, quat=false)
+    Hs, statuses, times = dataset_slem_separated(keypoint_data, poses, object_id; order=order, quat=quat)
 
     # save
     frames = collect(keys(Hs))

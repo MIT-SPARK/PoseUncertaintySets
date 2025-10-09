@@ -199,21 +199,27 @@ function dataset_slem_separated(keypoint_data, pose_data, object_id; order=1, qu
         end
 
         # S-Lemma: rotations
-        out = @timed bounding_ellipse_separated(center, y, r, b, camK, [1.; 0]; order=order, silent=true)
-        H_r, _, status_r = out.value
-        time_s = out.time - out.compile_time
-        H_r = H_r[1:9,1:9]
+        if quat
+            out = @timed bounding_ellipse_quat(center, y, r, b, camK; order=order, silent=true)
+            H, status_r, status_t = out.value
+            time_s = out.time - out.compile_time
+        else
+            # rotations
+            out = @timed bounding_ellipse_separated(center, y, r, b, camK, [1.; 0]; order=order, silent=true)
+            H_r, _, status_r = out.value
+            time_s = out.time - out.compile_time
+            H_r = H_r[1:9,1:9]
 
-        # S-Lemma: translations
-        out = @timed bounding_ellipse_separated(center, y, r, b, camK, [0; 1.]; order=order, silent=true)
-        H_t, _, status_t = out.value
-        time_s += out.time - out.compile_time
-        H_t = H_t[10:12,10:12]
-
-        Main.@infiltrate
+            # translations
+            out = @timed bounding_ellipse_separated(center, y, r, b, camK, [0; 1.]; order=order, silent=true)
+            H_t, _, status_t = out.value
+            time_s += out.time - out.compile_time
+            H_t = H_t[10:12,10:12]
+            H = [H_r zeros(9,3); zeros(3,9) H_t]
+        end
+        
         
         # save
-        H = [H_r zeros(9,3); zeros(3,9) H_t] # should preserve downstream parts.
         Hs[frame] = H
         statuses_r[frame] = status_r
         statuses_t[frame] = status_t

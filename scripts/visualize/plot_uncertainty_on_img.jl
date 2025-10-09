@@ -10,21 +10,27 @@ using LinearAlgebra
 using SimpleRotations
 using PoseUncertaintySets
 
-image_parent = "../data/lmo/test"
-cadpath = "../data/lmo/models_eval/"
+
 
 # settings used for figure
-object_id = 9
-frame = 352
+# dataset = "lmo"
+# object_id = 9
+# frame = 352
+dataset = "ycbv"
+object_id = 14
+frame = 480083 # 501125
 α = 0.1
 p = Inf
+
+image_parent = "../data/$dataset/test"
+cadpath = "../data/$dataset/models_eval/"
 
 # load CAD
 cad = FileIO.load(cadpath*(@sprintf "obj_%06d.ply" object_id))
 cad_m = GeometryBasics.Mesh(GeometryBasics.coordinates(cad)/1000, cad.faces)
 
 # load data and calibrate
-keypoint_data, gt = load_keypoint_data(calibrate_lp, p=p, α=α)
+keypoint_data, gt = load_keypoint_data(calibrate_lp, dataset, p=p, α=α)
 prob = get_problem(keypoint_data, object_id, frame); camK = prob.camK
 
 # get pose estimate and ellipse
