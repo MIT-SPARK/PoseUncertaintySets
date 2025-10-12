@@ -18,7 +18,7 @@ object_ids = [1,5,6,9,8,10,11,12]
 # object_ids = [1]
 α = 0.1
 p = Inf
-order = 1
+order = 2
 if order == 2
     quat = true
 else
@@ -28,7 +28,7 @@ pose = "pnp2"
 
 cadpath = "../data/$dataset/models_eval/"
 posepath = "../data/$dataset/pose_$(pose)_$(round(Int,α*100))_$(string(p)).dat"
-savepath = "../data/$dataset/ellipse_slemsep_rotm_o$(order)_$(round(Int,α*100))_$(string(p)).dat"
+savepath = "../data/$dataset/ellipse_slemsep_$(quat ? "quat" : "rotm")_o$(order)_$(round(Int,α*100))_$(string(p)).dat"
 
 # load data
 keypoint_data, gt = load_keypoint_data(calibrate_lp, dataset; p=p, α=α)

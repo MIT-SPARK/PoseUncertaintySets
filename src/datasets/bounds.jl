@@ -200,7 +200,7 @@ function dataset_slem_separated(keypoint_data, pose_data, object_id; order=1, qu
 
         # S-Lemma: rotations
         if quat
-            out = @timed bounding_ellipse_quat(center, y, r, b, camK; order=order, silent=true)
+            out = @timed bounding_ellipse_quat_separated(center, y, r, b, camK; order=order, silent=true)
             H, status_r, status_t = out.value
             time_s = out.time - out.compile_time
         else

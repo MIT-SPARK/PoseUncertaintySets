@@ -14,7 +14,7 @@ function plot_image(parent, frame; type="png", data=nothing)
 
         img_name = @sprintf "%06d.%s" frame type
     elseif occursin("cast", parent)
-        !isnothing(data) || error("Data cannot be nothing for cast.")
+        !isnothing(data) || error("Data cannot be nothing for CAST.")
         img_name = split(data[frame]["rgb_image_filename"],"/")[end]
         # imgs = sort(filter(x -> startswith(x,"rgb_image"), readdir(parent)), by=x->parse(Int,split(split(x,"_")[end],".")[1]))
         # img_name = imgs[frame]

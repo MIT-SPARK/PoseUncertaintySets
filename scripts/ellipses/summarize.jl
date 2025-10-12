@@ -8,6 +8,7 @@ using Statistics
 using LinearAlgebra
 using DataFrames, TexTables
 using JuMP
+using Printf
 import Plots
 
 using SimpleRotations
@@ -23,7 +24,7 @@ object_ids = [1,5,6,9,8,11,12] # omit 10
 α = 0.1
 p = Inf
 sdporder = 2
-if sdporder == 2
+if sdporder >= 2
     quat = true
 else
     quat = false
@@ -41,8 +42,10 @@ if sdporder == 2
     close(file)
 end
 # load ransag
-save_path = "../data/$dataset/bounds_ransag_o$(sdporder)_$(round(Int,α*100))_2.dat" # p=2 only
-bounds_ransag = deserialize(save_path)["bounds"]
+if sdporder <= 2
+    save_path = "../data/$dataset/bounds_ransag_o$(sdporder)_$(round(Int,α*100))_2.dat" # p=2 only
+    bounds_ransag = deserialize(save_path)["bounds"]
+end
 # load slem
 if !quat
     save_path = "../data/$dataset/ellipse_slem_rotm_o$(sdporder)_$(round(Int,α*100))_$(string(p)).dat"
@@ -92,6 +95,12 @@ for object_id in object_ids
 end
 slem_t = reduce(hcat, slem_t)
 slem_r = reduce(hcat, slem_r)
+
+
+printstyled("\nAblation Data\n", underline=true)
+@printf "tran (slem): %.4e (m³)\n" (median(4/3*π*slem_t[1,:].*slem_t[2,:].*slem_t[3,:]))
+@printf "angu (slem): %.2e (deg³)\n" (median(4/3*π*min.(90,slem_r[1,:]).*min.(90.,slem_r[2,:]).*min.(90,slem_r[3,:])))
+@printf "time (slem): %.1f ms\n" (median(data_slem.time_s[filter_combined])*1000)
 
 
 ## Summarize / plot!

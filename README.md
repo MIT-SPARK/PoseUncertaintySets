@@ -1,5 +1,5 @@
-# Pose Uncertainty Sets
-Julia code for Pose Uncertainty Sets
+# S-Lemma Uncertainty Ellipsoids for Monocular Pose Estimation
+Julia code for SLUE.
 
 **TODO: nice figure / animation here**
 

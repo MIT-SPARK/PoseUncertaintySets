@@ -38,6 +38,10 @@ P2 = [diagm(ones(4)) zeros(4,3)]
 Hr_o2 = Ω2(q_est)'*inv(P2*pinv(H_o2)*P2')*Ω2(q_est)
 Pθ = [zeros(3,1) diagm(ones(3))]
 Hθq_o2 = inv(Pθ*pinv(Hr_o2)*Pθ')
+# q ellipse order 3 (very slow)
+# H_o3, gap_o3, status_o3 = bounding_ellipse_quat([q_est; t_est], prob; silent=true, order=3)
+# Hr_o3 = Ω2(q_est)'*inv(P2*pinv(H_o3)*P2')*Ω2(q_est)
+# Hθq_o3 = inv(Pθ*pinv(Hr_o3)*Pθ')
 
 # get samples
 S_R, S_t = sample_set(prob; method="ransag", T=1000)
@@ -84,5 +88,8 @@ surf = ellipse_to_surf(Hθq_o2, zeros(3), 100)
 Plots.scatter3d!(surf[1,:], surf[2,:], surf[3,:], label="order 2")
 surf = ellipse_to_surf(diagm(ones(3)), zeros(3), 100)
 Plots.scatter3d!(surf[1,:], surf[2,:], surf[3,:], label="unit")
+# order 3 ellipse
+# surf = ellipse_to_surf(Hθq_o3, zeros(3), 100)
+# Plots.scatter3d!(surf[1,:], surf[2,:], surf[3,:], label="order 3")
 # samples
 plot_q = Plots.scatter3d!(eachrow(ωsinθ2)..., label="samples")

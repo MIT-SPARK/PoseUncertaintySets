@@ -14,12 +14,12 @@ using SimpleRotations
 using PoseUncertaintySets
 
 ## global parameters
-# dataset = "lmo"
-# object_ids = [1,5,6,9,8,11,12] # omit 10
+dataset = "lmo"
+object_ids = [1,5,6,9,8,11,12] # omit 10
 # dataset = "ycbv"
 # object_ids =  [1:12;14;15] # omit 13, 16:21
-dataset = "cast"
-object_ids = [1]
+# dataset = "cast"
+# object_ids = [1]
 α = 0.1
 p = Inf
 sdporder = 2
@@ -28,11 +28,11 @@ pose = "pnp2"
 
 ## Load data
 # load slem separate
-save_path = "../data/$dataset/ellipse_slemsep_rotm_o$(sdporder)_$(round(Int,α*100))_$(string(p)).dat"
+save_path = "../data/$dataset/ellipse_slemsep_$(sdporder==2 ? "quat" : "rotm")_o$(sdporder)_$(round(Int,α*100))_$(string(p)).dat"
 slem_sep_dict = deserialize(save_path)
 H_slem_sep = slem_sep_dict["ellipses"]
 # load slem
-save_path = "../data/$dataset/ellipse_slem_rotm_o$(sdporder)_$(round(Int,α*100))_$(string(p)).dat"
+save_path = "../data/$dataset/ellipse_slem_$(sdporder==2 ? "quat" : "rotm")_o$(sdporder)_$(round(Int,α*100))_$(string(p)).dat"
 slem_dict = deserialize(save_path)
 H_slem = slem_dict["ellipses"]
 # load poses
@@ -43,7 +43,7 @@ poses = deserialize(posepath)["solns"]
 ## Preprocess data: remove bad points
 # preprocess slem separate
 data_slem_sep = filter(:id => f-> f in object_ids, slem_sep_dict["data"])
-filter_slem_sep = data_slem_sep.optimal_r .&& data_slem_sep.optimal_t
+filter_slem_sep = data_slem_sep.optimal_t .&& data_slem_sep.optimal_r
 println("Separate filtered: $(sum(filter_slem_sep))/$(size(data_slem_sep,1))")
 # preprocess slem separate
 data_slem = filter(:id => f-> f in object_ids, slem_dict["data"])
@@ -51,7 +51,7 @@ filter_slem = data_slem.optimal
 println("Together filtered: $(sum(filter_slem))/$(size(data_slem,1))")
 
 # combine filters
-filter_combined = filter_slem .& filter_slem_sep
+filter_combined = filter_slem .& filter_slem_sep # ones(Bool, length(filter_slem))
 println("Combined filter: $(sum(filter_combined))/$(size(data_slem,1))")
 
 
@@ -87,12 +87,12 @@ slem_r = reduce(hcat, slem_r)
 
 ## Summarize / plot!
 println("")
-println("t. vol (together): $(mean(4/3*π*slem_t[1,:].*slem_t[2,:].*slem_t[3,:])) m^3")
-println("t. vol (separate): $(mean(4/3*π*slem_sep_t[1,:].*slem_sep_t[2,:].*slem_sep_t[3,:])) m^3")
-println("r. vol (together): $(mean(4/3*π*min.(90,slem_r[1,:]).*min.(90.,slem_r[2,:]).*min.(90,slem_r[3,:]))) deg^3")
-println("r. vol (separate): $(mean(4/3*π*min.(90,slem_sep_r[1,:]).*min.(90.,slem_sep_r[2,:]).*min.(90,slem_sep_r[3,:]))) deg^3")
-println("time (together): $(mean(data_slem.time_s[filter_combined]))")
-println("time (separate): $(mean(data_slem_sep.time_s[filter_combined]))")
+println("t. vol (together): $(median(4/3*π*slem_t[1,:].*slem_t[2,:].*slem_t[3,:])) m^3")
+println("t. vol (separate): $(median(4/3*π*slem_sep_t[1,:].*slem_sep_t[2,:].*slem_sep_t[3,:])) m^3")
+println("r. vol (together): $(median(4/3*π*min.(90,slem_r[1,:]).*min.(90.,slem_r[2,:]).*min.(90,slem_r[3,:]))) deg^3")
+println("r. vol (separate): $(median(4/3*π*min.(90,slem_sep_r[1,:]).*min.(90.,slem_sep_r[2,:]).*min.(90,slem_sep_r[3,:]))) deg^3")
+println("time (together): $(median(data_slem.time_s[filter_combined]))")
+println("time (separate): $(median(data_slem_sep.time_s[filter_combined]))")
 
 
 # translation CDF (volume)

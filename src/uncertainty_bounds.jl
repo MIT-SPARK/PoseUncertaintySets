@@ -600,17 +600,16 @@ function bounding_ellipse_quat_separated(center, q_ineq, q_eqs; order=2, silent=
     order = order
     # CS="MD" doesn't make a difference runtime wise
     opt, sol, data, gap, model_base = cs_tssos_first(pop, vars, order, numeq=length(eq), TS=false, CS=false, QUIET=silent, solve=false, solution=false, MomentOne=true)
-
-    if silent
-        set_silent(model)
-    end
-
+    
     # solve twice: once for rotations, once for translations
     H_val = zeros(7,7)
     status_r = nothing
     status_t = nothing
     for mode in ['r', 't']
         model = copy(model_base)
+        if silent
+            set_silent(model)
+        end
         ## Modify model
         # add shape variable `H`
         if mode == 'r'
