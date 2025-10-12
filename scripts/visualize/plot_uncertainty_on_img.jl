@@ -19,6 +19,9 @@ frame = 352
 # dataset = "ycbv"
 # object_id = 5 # 5, 4, 15
 # frame = 501125 # 501125
+# dataset = "cast"
+# object_id = 1
+# frame = 703
 α = 0.1
 p = Inf
 
@@ -39,7 +42,12 @@ center = [rotm2quat(R_est); t_est]
 H, gap_slem, status_slem = bounding_ellipse_quat(center, prob; silent=true, order=2)
 
 # plot pose estimate
-p_pose, img = plot_image(image_parent, frame)
+if dataset == "cast"
+    data_cast = JSON.parsefile("../data/$dataset/detections_test.json")
+    p_pose, img = plot_image(image_parent, frame, data=data_cast)
+else
+    p_pose, img = plot_image(image_parent, frame)
+end
 (p_pose, seg) = plot_mask!(p_pose, img, cadpath, object_id, (R_est, t_est), camK; lazy=false)
 plot_outline!(p_pose, img, seg)
 
@@ -52,7 +60,11 @@ for (R, t) in zip(S_R, S_t)
     mask = get_lazy_mask(img, R, t, cad_m, camK)
     sample_mask .|= mask
 end
-p_sampled, img = plot_image(image_parent, frame)
+if dataset == "cast"
+    p_sampled, img = plot_image(image_parent, frame; data=data_cast)
+else
+    p_sampled, img = plot_image(image_parent, frame)
+end
 img_mask = Images.RGBA.(copy(img)).*0
 img_mask[sample_mask] .= Images.RGBA(0,1,1, 0.5)
 p_sampled = Plots.plot!(img_mask)
@@ -75,7 +87,11 @@ for (R, t) in zip(surf_R, surf_t)
     mask = get_lazy_mask(img, R, t, cad_m, camK)
     sample_mask .|= mask
 end
-p_surf, img = plot_image(image_parent, frame)
+if dataset == "cast"
+    p_surf, img = plot_image(image_parent, frame; data=data_cast)
+else
+    p_surf, img = plot_image(image_parent, frame)
+end
 img_mask = Images.RGBA.(copy(img)).*0
 img_mask[sample_mask] .= Images.RGBA(0,1,1, 0.5)
 p_surf = Plots.plot!(img_mask)
