@@ -13,12 +13,12 @@ using PoseUncertaintySets
 
 
 # settings used for figure
-# dataset = "lmo"
-# object_id = 9
-# frame = 352
-dataset = "ycbv"
-object_id = 14
-frame = 480083 # 501125
+dataset = "lmo"
+object_id = 9 # 12, 8, 9
+frame = 352
+# dataset = "ycbv"
+# object_id = 5 # 5, 4, 15
+# frame = 501125 # 501125
 α = 0.1
 p = Inf
 

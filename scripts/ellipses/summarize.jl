@@ -78,7 +78,7 @@ filter_slem = data_slem.optimal
 println("S-Lemma filtered: $(sum(filter_slem))/$(size(data_slem,1))")
 
 # combine filters
-filter_combined = filter_t .& filter_θ# .& filter_slem
+filter_combined = filter_t .& filter_θ #.& filter_slem
 println("Combined filter: $(sum(filter_combined))/$(size(data_slem,1))")
 
 # s-lemma: get explicit bounds
@@ -116,8 +116,13 @@ if sdporder == 2
     plot_cdf!(p_tcdf, 4/3*π*(t_grcc)[filter_grcc].^3; label="GRCC")
 end
 Plots.plot!(xscale=:log10)
-Plots.plot!(yticks=0:0.2:1, ylim=[0,1])
-Plots.plot!(p_tcdf,xlim=[1e-5,200],xticks=[1e-4,1e-2,1,100])
+if α == 0.1
+    Plots.plot!(yticks=0:0.2:1, ylim=[0,1])
+    Plots.plot!(p_tcdf,xlim=[1e-5,200],xticks=[1e-4,1e-2,1,100])
+else
+    Plots.plot!(yticks=0:0.2:1, ylim=[0,1])
+    Plots.plot!(p_tcdf,xlim=[1e-7,100],xticks=[1e-6,1e-4,1e-2,1,100])
+end
 Plots.plot!(fontfamily="helvetica")
 
 # angular CDF (volume)
@@ -133,8 +138,13 @@ if sdporder == 2
     plot_cdf!(p_acdf, 4/3*π*min.((r_grcc)[filter_grcc], 90.).^3; label="GRCC")
 end
 Plots.plot!(xscale=:log10)
-Plots.plot!(yticks=0:0.2:1, ylim=[0,1])
-Plots.plot!(p_acdf,xlim=[500,1e7],xticks=[1e3,1e4,1e5,1e6])
+if α == 0.1
+    Plots.plot!(yticks=0:0.2:1, ylim=[0,1])
+    Plots.plot!(p_acdf,xlim=[500,1e7],xticks=[1e3,1e4,1e5,1e6])
+else
+    Plots.plot!(yticks=0:0.2:1, ylim=[0,1])
+    Plots.plot!(p_acdf,xlim=[10,1e7],xticks=[1e2,1e4,1e6])
+end
 Plots.plot!(fontfamily="helvetica")
 
 

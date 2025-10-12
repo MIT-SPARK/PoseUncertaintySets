@@ -23,7 +23,7 @@ using ColorSchemes, Colors
 # frame = 480083 # 501125
 dataset = "cast"
 object_id = 1
-frame = 703
+frame = 1000 # 568, 1000, 703
 α = 0.1
 p = Inf
 

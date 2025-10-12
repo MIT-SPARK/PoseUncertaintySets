@@ -8,13 +8,14 @@ using PoseUncertaintySets
 using SimpleRotations
 
 # settings used for figure
+dataset = "lmo"
 object_id = 9
 frame = 352
 α = 0.1
 p = Inf
 
 # load data and calibrate
-keypoint_data, gt = load_keypoint_data(calibrate_lp, p=p, α=α)
+keypoint_data, gt = load_keypoint_data(calibrate_lp, dataset, p=p, α=α)
 prob = get_problem(keypoint_data, object_id, frame)
 
 # get pose estimate and ellipse
