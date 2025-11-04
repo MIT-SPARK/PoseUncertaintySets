@@ -210,3 +210,40 @@ function bound_2d_center(As, Bs=[]; order=1, silent=false)
 
     return inv(value.(Hinv)), termination_status(model), value.(center)
 end
+
+
+function bound_2d_manycon(center, As, Bs=[]; order=1, silent=false)
+    (order == 1) || error("Not implemented yet!")
+
+    # JuMP model
+    model = Model(Mosek.Optimizer)
+    if silent
+        set_silent(model)
+    end
+    @variable(model, log_det_H)
+    @variable(model, λ[1:length(As)] .>= 0)
+    if length(Bs) > 0
+        @variable(model, η[1:length(Bs)])
+    end
+    @variable(model, H[1:2,1:2] ∈ PSDCone())
+
+    # objective
+    @objective(model, Max, log_det_H)
+    @constraint(model, [log_det_H; 1; triangle_vec(H)] ∈ MOI.LogDetConeTriangle(2))
+
+    # constrain each independently...
+    for (i,A) in enumerate(As)
+        M = λ[i]*A - [center'*H*center-1  (-H*center)'; -H*center  H]
+        @constraint(model, M >= 0, PSDCone())
+    end
+    for (i,B) in enumerate(Bs)
+        M = η[i]*B - [center'*H*center-1  (-H*center)'; -H*center  H]
+        @constraint(model, M >= 0, PSDCone())
+    end
+
+    # solve!
+    optimize!(model)
+    Main.@infiltrate
+
+    return value.(H), termination_status(model)
+end

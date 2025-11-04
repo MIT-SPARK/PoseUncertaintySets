@@ -59,7 +59,7 @@ time_t = out.time - out.compile_time
 gt = gt[frame][object_id]
 
 # print stats
-df_slem   = TableCol("Joint", "time"=>time_slem, 
+df_slem   = TableCol("Joint", "time"=>time_together, 
     "vol_t" => 4/3*π*prod(boundst),
     "vol_θ" => 4/3*π*prod(boundsθ),
     "gtcov" => ([vec(gt[1] - R); gt[2] - t]'*H*[vec(gt[1] - R); gt[2] - t] ≤ 1),

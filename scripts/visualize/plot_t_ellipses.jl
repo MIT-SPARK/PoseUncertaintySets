@@ -3,6 +3,7 @@
 # Lorenzo Shaikewitz, 8/1/2025
 
 using LinearAlgebra
+using Statistics
 import Plots
 using PoseUncertaintySets
 using SimpleRotations
@@ -31,6 +32,7 @@ Ht_o2 = inv(P2*pinv(H_o2)*P2')
 # Ht_o3 = inv(P2*pinv(H_o3)*P2')
 
 # RANSAG
+trans_bound1, trans_gap1, ang_bound1, ang_gap1, status1 = purse_bounds([vec(R_est); t_est], prob.y, prob.r, prob.b, prob.camK; order=1, silent=true)
 trans_bound, trans_gap, ang_bound, ang_gap, status = purse_bounds([vec(R_est); t_est], prob.y, prob.r, prob.b, prob.camK; order=2, silent=true)
 
 # get samples
@@ -39,22 +41,40 @@ S_t = reduce(hcat, S_t)
 # S_R, S_t = sample_set(prob; method="grid", Ht=Ht_o2)
 
 ## plot!
+ms_plot = 0.5
+
 Plots.gr()
+surfs = zeros(3,0)
+# RANSAG order 1
+surf = ellipse_to_surf(diagm(ones(3))/trans_bound1.^2, t_est, 100)
+Plots.scatter3d(surf[1,:], surf[2,:], surf[3,:], label="RANSAG (order 1)", msw=0., c=5, ms=ms_plot)
+surfs = hcat(surfs, surf)
 # order 1 ellipse
 surf = ellipse_to_surf(Ht_o1, t_est, 100)
-Plots.scatter3d(surf[1,:], surf[2,:], surf[3,:], label="order 1", msw=0.,c=4)
-# RANSAG
-# surf = ellipse_to_surf(diagm(ones(3))/trans_bound.^2, t_est, 100)
-# Plots.scatter3d!(surf[1,:], surf[2,:], surf[3,:], label="RANSAG", msw=0., c=1)
+Plots.scatter3d!(surf[1,:], surf[2,:], surf[3,:], label="order 1", msw=0.,c=4, ms=ms_plot)
+surfs = hcat(surfs, surf)
+# RANSAG order 2
+surf = ellipse_to_surf(diagm(ones(3))/trans_bound.^2, t_est, 100)
+Plots.scatter3d!(surf[1,:], surf[2,:], surf[3,:], label="RANSAG (order 2)", msw=0., c=1, ms=ms_plot)
+surfs = hcat(surfs, surf)
 # order 2 ellipse
 surf = ellipse_to_surf(Ht_o2, t_est, 100)
-Plots.scatter3d!(surf[1,:], surf[2,:], surf[3,:], label="order 2", msw=0.,c=3)
+Plots.scatter3d!(surf[1,:], surf[2,:], surf[3,:], label="order 2", msw=0.,c=3, ms=ms_plot)
+surfs = hcat(surfs, surf)
 # samples
-Plots.scatter3d!(eachrow(S_t)..., label="samples", c="royalblue4", msw=0.)
+Plots.scatter3d!(eachrow(S_t)..., label="samples", c="royalblue4", msw=0., ms=ms_plot)
 # center and camera
-Plots.plot!([t_est[1]], [t_est[2]], [t_est[3]], seriestype=:scatter, label="center",c=1, msw=0., ms=2)
+Plots.plot!([t_est[1]], [t_est[2]], [t_est[3]], seriestype=:scatter, label="center",c=1, ms=2)
 plot_static = Plots.scatter!([0],[0],[0],label="camera",c="grey", xlabel="x",ylabel="y",zlabel="z")
 # Plots.savefig(plot_static, "tellipse_10.svg")
+
+x12, y12, z12 = extrema(surfs[1,:]), extrema(surfs[2,:]), extrema(surfs[3,:])
+d = maximum([diff([x12...]),diff([y12...]),diff([z12...])])[1] / 2
+xm, ym, zm = mean(x12),  mean(y12),  mean(z12)
+Plots.plot!(xlims=(xm-d,xm+d), ylims=(ym-d,ym+d), zlims=(zm-d,zm+d), aspect_ratio=1)
+Plots.plot!(camera=(50,20))
+
+
 
 Plots.plotlyjs()
 Plots.plot([t_est[1]], [t_est[2]], [t_est[3]], seriestype=:scatter, label="center")

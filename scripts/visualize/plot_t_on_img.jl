@@ -41,6 +41,10 @@ H, gap_slem, status_slem = bounding_ellipse_quat(center, prob; silent=true, orde
 # marginalize
 (Ht, Hθ), (boundst, boundsθ) = project_ellipse(H, R_est)
 
+# PURSE version
+# trans_bound, trans_gap, ang_bound, ang_gap, status = purse_bounds([vec(R_est); t_est], prob.y, prob.r, prob.b, prob.camK; order=2, silent=true)
+# Ht = diagm(ones(3))/trans_bound.^2
+
 # plot image with frame
 p, img = plot_image(image_parent, frame, data=data_cast)
 plot_frame!(p, (R_est, t_est), camK; gt=false)

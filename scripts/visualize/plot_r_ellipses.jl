@@ -9,8 +9,8 @@ using SimpleRotations
 
 # settings used for figure
 dataset = "lmo"
-object_id = 1#9
-frame = 1175#352
+object_id = 9
+frame = 352
 α = 0.1
 p = Inf
 
@@ -43,6 +43,10 @@ Hθq_o2 = inv(Pθ*pinv(Hr_o2)*Pθ')
 # Hr_o3 = Ω2(q_est)'*inv(P2*pinv(H_o3)*P2')*Ω2(q_est)
 # Hθq_o3 = inv(Pθ*pinv(Hr_o3)*Pθ')
 
+# RANSAG
+# trans_bound1, trans_gap1, ang_bound1, ang_gap1, status1 = purse_bounds([vec(R_est); t_est], prob.y, prob.r, prob.b, prob.camK; order=1, silent=true)
+# trans_bound, trans_gap, ang_bound, ang_gap, status = purse_bounds([vec(R_est); t_est], prob.y, prob.r, prob.b, prob.camK; order=2, silent=true)
+
 # get samples
 S_R, S_t = sample_set(prob; method="ransag", T=1000)
 # R = R₀*R̄ ⟹ R₀ = R*R̄'
@@ -56,8 +60,14 @@ surf = ellipse_to_surf(Hθ_o1, zeros(3), 100)
 Plots.scatter3d(surf[1,:], surf[2,:], surf[3,:], label="order 1", msw=0.,c=2)
 # surf = ellipse_to_surf(Hθ_o2, zeros(3), 100)
 # Plots.scatter3d!(surf[1,:], surf[2,:], surf[3,:], label="order 2", msw=0.,c=3)
+# ransag
+# surf = ellipse_to_surf(I(3) / sin(min(90, ang_bound1)*π/180)^2, zeros(3), 100)
+# Plots.scatter3d!(surf[1,:], surf[2,:], surf[3,:], label="RANSAG order 1", msw=0.,c=4)
+# surf = ellipse_to_surf(I(3) / sin(min(90, ang_bound)*π/180)^2, zeros(3), 100)
+# Plots.scatter3d!(surf[1,:], surf[2,:], surf[3,:], label="RANSAG order 2", msw=0.,c=5)
+
 surf = ellipse_to_surf(diagm(ones(3)), zeros(3), 100)
-Plots.scatter3d!(surf[1,:], surf[2,:], surf[3,:], label="unit", msw=0.,c="red3")
+# Plots.scatter3d!(surf[1,:], surf[2,:], surf[3,:], label="unit", msw=0.,c="red3")
 # samples
 Plots.scatter3d!(eachrow(ωsinθ)..., label="samples", c="royalblue4", msw=0.)
 # origin and limits
