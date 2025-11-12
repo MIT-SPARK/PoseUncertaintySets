@@ -20,7 +20,7 @@ julia --project
 3. Install dependencies
 ```julia-repl
 ] # enters pkg> mode
-add https://github.com/lopenguin/SimpleRotations.jl https://github.com/lopenguin/TSSOS.git https://github.com/lopenguin/P3P.jl.git
+add https://github.com/lopenguin/SimpleRotations.jl https://github.com/lopenguin/TSSOSMinimal.git https://github.com/lopenguin/P3P.jl.git
 ```
 *You may also need to get a [MOSEK license](https://www.mosek.com/products/academic-licenses/). These are available for free to academic users.*
 
@@ -34,10 +34,6 @@ It may take a while to run the first time, but try running it again (should be m
 <p align="center">
   <img src="assets/2d_demo.png" />
 </p>
-
-
-### Troubleshooting
-
 
 
 ## Quick Start
