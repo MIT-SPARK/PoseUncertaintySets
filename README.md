@@ -35,54 +35,45 @@ It may take a while to run the first time, but try running it again (should be m
   <img src="assets/2d_demo.png" />
 </p>
 
+## Reproduce results
+We assume you are in the home directory of this repository and you've been through the quick start step. 
 
-## Quick Start
-TODO:
-- Data folder
-- Julia environment
-- Put some demo data in the repo!
+First, download the data folder. We first move to the directory containing `PoseUncertaintySets`, and then pull data off of Google drive.
+```shell
+cd ..
+wget -O data.zip "https://drive.usercontent.google.com/download?id=1-Hpl3zb1hX3p-uaOD5r-ZhoLCqYKJRII&export=download&confirm=yes"
+unzip data.zip -d data
+rm data.zip
+```
+You can also download [from Google drive](https://drive.google.com/file/d/1-Hpl3zb1hX3p-uaOD5r-ZhoLCqYKJRII/view?usp=sharing) and put it in a "data" folder.
 
-### Setting up the data folder
-To run experiments you will need a data folder. We show the default file structure below.
+This should give a directory structure which looks like:
 ```
 ├── data
-│   ├── lmo
-│   │   ├── models_eval
-│   │   ├── cal (BOP subset)
-│   │   ├── test (all images)
-│   │   ├── kpts3d.json
-│   │   ├── detections_cal.json
-│   │   ├── detections_test.json
-│   ├── ycbv
-│   │   ├── models_eval
-│   │   ├── cal (freshly generated synthetic data)
-│   │   ├── test (BOP subset)
-│   │   ├── kpts3d.json
-│   │   ├── detections_test.json
-│   ├── cast
-│   │   ├── test
-│   │   ├── detections_test.json
 ├── PoseUncertaintySets
 ```
-TODO: where to find all this / quick download script?
 
-
-## Organization
+You can now run the method with CAST. Try:
+```shell
+julia --project
+include("scripts/demo/demo_R.jl")
+include("scripts/demo/demo_quat.jl")
 ```
-├── scripts
-│   ├── oneframe
-├── src
-│   ├── datasets
-│   ├── visualization
-```
-- `scripts` has ready-written scripts to reproduce experiments. They may be run directly via `include("scripts/NAME.jl")` in the Julia REPL.
-- `src` has functions. At the top level are the core functions for processing a single image.
-- `src/datasets` contains functions for processing datasets. These rely on the core functions in `src`.
 
-TODO
+You can also see the results for LM-O, YCB-V, and CAST. Just use any of the `summarize.jl` scripts or see the more details section. To actually run the method on LM-O or YCB-V, you need to download their data.
 
-## Reproduce results
-We assume you are in the home directory of this repository and you've been through the quick start step.
+### Run with LM-O
+For LM-O, download `all test images`, `BOP test images`, and `object models` from [BOP](https://bop.felk.cvut.cz/datasets/#LM-O). Unzip. Place all test images as `data/lmo/test`. Place BOP test images as `data/lmo/cal`. Place object models as `data/lmo/models_eval`.
+
+Change the dataset in `demo_R.jl` to `lmo` to test.
+
+### Run with YCB-V
+For YCB-V, download `BOP test images` and `object models` from [BOP](https://bop.felk.cvut.cz/datasets/#YCB-V). Unzip. Place all test images as `data/ycbv/test`. Place object models as `data/ycbv/models_eval`. We provide synthetic calibration images.
+
+Change the dataset in `demo_R.jl` to `ycbv` to test.
+
+### More details
+
 
 <details closed>
 
@@ -119,7 +110,7 @@ The following options are available for pose estimation:
 
 <details closed>
 
-<summary><b>Ellipsoids and Uncertainty Bounds</b></summary>
+<summary><b>Ellipsoids, Uncertainty Bounds, and Runtime</b></summary>
 
 ```shell
 # S-Lemma (first order / rotation matrix)
@@ -160,37 +151,66 @@ Note that the pose estimate choice must match the pose estimate used to generate
 </details>
 
 
-<details closed>
-
-<summary><b>Runtime</b></summary>
-
-
-
-```shell
-
-```
-
-</details>
-
 
 <details closed>
 
 <summary><b>Visualizations</b></summary>
 
-
-
+Visualize keypoints on an image:
 ```shell
+# plot on a single image
+julia --project scripts/visualize/plot_keypoints.jl
+# or generate a video
+julia --project scripts/visualize/video.jl
+```
 
+Visualize ellipsoids, with interactivity:
+```shell
+# rotation
+julia --project scripts/visualize/plot_r_ellipses.jl
+# translation
+julia --project scripts/visualize/plot_t_ellipses.jl
+```
+
+Visualize the second order ellipsoids projected onto image plane:
+```shell
+julia --project scripts/plot_uncertainty_on_img.jl
 ```
 
 </details>
 
+
+<details closed>
+
+<summary><b>Compare with GRCC</b></summary>
+
+To compare with GRCC we use their [official MATLAB implementation](https://github.com/Negotch/GRCC-code).
+
+You can export data for GRCC using `scripts/ellipses/grcc_export.jl`. The results from running GRCC are in the `dataset_grcc.mat` files.
+
+</details>
+
+
 ## References
-- RANSAG
-- GRCC?
-- BOP-keypoints
-- LM-O
-- YCB-V
-- CAST
+- H. Yang and M. Pavone, "Object pose estimation with statistical
+guarantees: Conformal keypoint detection and geometric uncertainty
+propagation", 2023. Available: https://arxiv.org/abs/2303.12246.
+- Y. Tang, J.-B. Lasserre, and H. Yang, “Uncertainty quantification
+of set-membership estimation in control and perception: Revisiting
+the minimum enclosing ellipsoid”, 2024. Available: https://proceedings.mlr.press/v242/tang24a.html.
+- E. Brachmann, A. Krull, F. Michel, S. Gumhold, J. Shotton, and
+C. Rother, “Learning 6d object pose estimation using 3d object coordinates,” 2014. Available: https://www.microsoft.com/en-us/research/wp-content/uploads/2016/02/PoseEstimationECCV2014.pdf
+- Y. Xiang, T. Schmidt, V. Narayanan, and D. Fox, “PoseCNN: A
+convolutional neural network for 6D object pose estimation in cluttered
+scenes,” 2018. Available: https://arxiv.org/abs/1711.00199.
+- L. Shaikewitz, S. Ubellacker, and L. Carlone, “A certifiable algorithm
+for simultaneous shape estimation and object tracking,” 2024. Available: https://arxiv.org/abs/2406.16837.
+- K. Schmeckpeper et al., “Semantic keypoint-based pose estimation from
+single rgb frames,” 2022. Available: https://arxiv.org/abs/2204.05864.
 
 ## BibTeX
+```
+@misc{Shaikewitz25arxiv-PoseUncertaintySets,
+      TODO
+}
+```

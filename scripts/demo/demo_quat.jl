@@ -16,8 +16,8 @@ using SimpleRotations
 plot = true
 # dataset / object / image frame
 dataset = "lmo" # ["lmo", "ycbv", "cast"]
-object_id = 9
-frame = 11
+object_id = 1
+frame = 111
 # relaxation order / confidence / keypoint uncertainty norm
 sdporder = 2 # cannot do order 1
 α = 0.1
