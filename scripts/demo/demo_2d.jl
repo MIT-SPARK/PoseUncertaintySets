@@ -16,18 +16,18 @@ import Plots
 
 # this is a cool example: you can see it get tighter up to order 3
 # and maybe a good logo?
-# center = [-0.6; -0.2]
-# A1 = [0 0.5 0; 0.5 1 0; 0 0 1] # x² + y² + x ≤ 0
-# A2 = [0.2 0 1; 0 -0.5 0; 1 0 0] # -0.5x² + 2y + 0.2 ≤ 0
-# A3 = [0 0 -0.5; 0 -1.5 0; -0.5 0 0] # -x² - y ≤ 0
-# As = [A1, A2, A3]
-
-# do AeroAstro logo?
-center = [-0.65; -0.2]
+center = [-0.6; -0.2]
 A1 = [0 0.5 0; 0.5 1 0; 0 0 1] # x² + y² + x ≤ 0
 A2 = [0.2 0 1; 0 -0.5 0; 1 0 0] # -0.5x² + 2y + 0.2 ≤ 0
-A3 = [0.3 0.5 -0.9; 0.5 0 0; -0.9 0 -5] # -x² - y ≤ 0
+A3 = [0 0 -0.5; 0 -1.5 0; -0.5 0 0] # -x² - y ≤ 0
 As = [A1, A2, A3]
+
+# do AeroAstro logo?
+# center = [-0.65; -0.2]
+# A1 = [0 0.5 0; 0.5 1 0; 0 0 1] # x² + y² + x ≤ 0
+# A2 = [0.2 0 1; 0 -0.5 0; 1 0 0] # -0.5x² + 2y + 0.2 ≤ 0
+# A3 = [0.3 0.5 -0.9; 0.5 0 0; -0.9 0 -5] # -x² - y ≤ 0
+# As = [A1, A2, A3]
 
 # box
 # center = [0; 0]
@@ -48,7 +48,7 @@ As = [A1, A2, A3]
 # As = [A1]
 Bs = []
 
-function certify(H, center, As)
+function certify_opt(H, center, As)
     # check if any point on the ellipse intersects the set boundary.
     # ellipse: (x - center)'*H*(x - center) = 1
     # unclear if this is actually a certificate.

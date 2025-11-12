@@ -10,10 +10,33 @@
 First, make sure you have [Julia installed](https://julialang.org/install/). This repository was tested with v1.11.6. Then, clone the repository and follow the directions below. We assume you are in the repo folder.
 1. Clone this repository
 ```shell
-git clone https://github.com/lopenguin/Fast-ShapeAndPose.git
-cd Fast-ShapeAndPose
+git clone https://github.com/lopenguin/PoseUncertaintySets.git
+cd PoseUncertaintySets
 ```
+2. Open the Julia REPL
+```shell
+julia --project
+```
+3. Install dependencies
+```julia-repl
+] # enters pkg> mode
+add https://github.com/lopenguin/SimpleRotations.jl https://github.com/lopenguin/TSSOS.git https://github.com/lopenguin/P3P.jl.git
+```
+*You may also need to get a [MOSEK license](https://www.mosek.com/products/academic-licenses/). These are available for free to academic users.*
 
+4. Test with 2D data
+```julia-repl
+# press backspace to return to the main REPL.
+include("scripts/demo/demo_2d.jl")
+```
+It may take a while to run the first time, but try running it again (should be much faster!). This will produce a plot like the one below:
+
+<p align="center">
+  <img src="assets/2d_demo.png" />
+</p>
+
+
+### Troubleshooting
 
 
 

@@ -243,7 +243,6 @@ function bound_2d_manycon(center, As, Bs=[]; order=1, silent=false)
 
     # solve!
     optimize!(model)
-    Main.@infiltrate
 
     return value.(H), termination_status(model)
 end
