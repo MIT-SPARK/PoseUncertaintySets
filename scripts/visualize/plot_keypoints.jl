@@ -10,7 +10,7 @@ dataset = "lmo"
 image_parent = "../data/$dataset/test"
 
 # settings used for figure
-object_id = 9
+object_id = 5
 frame = 352
 α = 0.1
 p = Inf

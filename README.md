@@ -1,7 +1,21 @@
-# S-Lemma Uncertainty Ellipsoids for Monocular Pose Estimation
-Julia code for SLUE.
+# Uncertainty Quantification for Visual Object Pose Estimation
+<h3 align="center"><a href="TODO"> Paper</a> | <a href="TODO">Video</a> | <a href="TODO">Data</a></h3>
 
-**TODO: nice figure / animation here**
+
+  90% confidence | 60% confidence
+:-------------------------:|:-------------------------:
+![](assets/lmo_qual.png)|![](assets/lmo_qual2.png)
+
+## Quick Start
+First, make sure you have [Julia installed](https://julialang.org/install/). This repository was tested with v1.11.6. Then, clone the repository and follow the directions below. We assume you are in the repo folder.
+1. Clone this repository
+```shell
+git clone https://github.com/lopenguin/Fast-ShapeAndPose.git
+cd Fast-ShapeAndPose
+```
+
+
+
 
 ## Quick Start
 TODO:

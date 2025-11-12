@@ -11,7 +11,7 @@ using SimpleRotations
 using PoseUncertaintySets
 
 dataset = "lmo"
-object_id = 9
+object_id = 5
 # dataset = "ycbv"
 # object_id = 14
 # dataset = "cast"
@@ -29,6 +29,6 @@ cad_m = GeometryBasics.Mesh(GeometryBasics.coordinates(cad)/1000, cad.faces)
 # load data and calibrate
 keypoint_data, gt = load_keypoint_data(calibrate_lp, dataset, p=p, α=α)
 
-f, ax, pl = mesh(cad_m, color=:yellow, axis=(; show_axis=false))
+f, ax, pl = mesh(cad_m, color=:white, axis=(; show_axis=false))
 scatter!(eachrow(keypoint_data["b"][object_id])...,markersize=40)
 
