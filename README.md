@@ -6,6 +6,11 @@
 :-------------------------:|:-------------------------:
 ![](assets/lmo_qual.png)|![](assets/lmo_qual2.png)
 
+This is the project repo for S-Lemma Uncertainty Estimation (SLUE). SLUE is a fast and statistically rigorous way to estimate pose uncertainty. Given a pose estimate and conformal uncertainty bounds on object keypoints, we compute an ellipsoidal bound on pose uncertainty for a given confidence. The shaded bounds above show the 90% and 60% confidence bounds for each object, projected onto the image plane. Pose uncertainty can be expressed as a single ellipsoid which is joint in rotation and translation, or independent ellipsoids for each quantity. These ellipsoidal bounds are easy to incorporate into downstream optimization for further reasoning.
+
+The main *theoretical* contribution of the paper is a sum-of-squares approach (inspired by the S-lemma) to efficiently bound semialgebraic sets with ellipsoids (see the [2D demos](scripts/demo/demo_2d.jl)). The main *practical* contribution is the application to pose uncertainty, which requires first running conformal prediction on object keypoints. We find that synthetic data, if appropriately generated, can satisfy the exchangability requirements of conformal prediction.
+
+
 ## Quick Start
 First, make sure you have [Julia installed](https://julialang.org/install/). This repository was tested with v1.11.6. Then, clone the repository and follow the directions below. We assume you are in the repo folder.
 1. Clone this repository
@@ -24,7 +29,7 @@ add https://github.com/lopenguin/SimpleRotations.jl https://github.com/lopenguin
 ```
 *You may also need to get a [MOSEK license](https://www.mosek.com/products/academic-licenses/). These are available for free to academic users.*
 
-4. Test with 2D data
+4. Ellipsoidal bounds with 2D data
 ```julia-repl
 # press backspace to return to the main REPL.
 include("scripts/demo/demo_2d.jl")
