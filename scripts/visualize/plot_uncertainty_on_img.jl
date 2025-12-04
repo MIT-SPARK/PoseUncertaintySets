@@ -82,6 +82,7 @@ surf_t = eachcol(surf[end-2:end,:])
 # assume θ within 90° of center ⟹ cosθ > 0
 surf_R = [quat2rotm([sqrt(1 - ωsinθ2'*ωsinθ2); ωsinθ2])*R_est for ωsinθ2 in eachcol(surf[1:3,:])]
 
+sample_mask = zeros(Bool, size(img))
 for (R, t) in zip(surf_R, surf_t)
     global sample_mask
     mask = get_lazy_mask(img, R, t, cad_m, camK)

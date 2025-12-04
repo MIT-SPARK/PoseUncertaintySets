@@ -70,6 +70,3 @@ anim = Plots.@animate for frame in sort(collect(keys(keypoint_data["y"])))
 end
 println("\nSaving...")
 Plots.gif(anim, "$(dataset)_$object_id.mp4", fps=15)
-
-# TODO: only works for LMO
-# need to work for YCB-V (multiple folders) and drone (weird format)

@@ -49,7 +49,7 @@ for object_id in object_ids
     poses_covered = Dict()
     ellipses_cov1 = Dict()
     ellipses_cov2 = Dict()
-    for frame in keys(gt)
+    for frame in sort(collect(keys(gt)))
         # remove missing keypoints
         if !(object_id in keys(keypoint_data["y"][frame]))
             continue

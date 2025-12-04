@@ -1,5 +1,5 @@
 # Uncertainty Quantification for Visual Object Pose Estimation
-<h3 align="center"><a href="TODO"> Paper</a> | <a href="TODO">Video</a> | <a href="https://drive.google.com/file/d/1-Hpl3zb1hX3p-uaOD5r-ZhoLCqYKJRII/view?usp=sharing">Data</a></h3>
+<h3 align="center"><a href="arxiv.org/pdf/2511.21666"> Paper</a> | <a href="TODO">Video</a> | <a href="https://drive.google.com/file/d/1-Hpl3zb1hX3p-uaOD5r-ZhoLCqYKJRII/view?usp=sharing">Data</a></h3>
 
 
   90% confidence | 60% confidence
@@ -216,6 +216,12 @@ single rgb frames,” 2022. Available: https://arxiv.org/abs/2204.05864.
 ## BibTeX
 ```
 @misc{Shaikewitz25arxiv-PoseUncertaintySets,
-      TODO
+      title={Uncertainty Quantification for Visual Object Pose Estimation}, 
+      author={Lorenzo Shaikewitz and Charis Georgiou and Luca Carlone},
+      year={2025},
+      eprint={2511.21666},
+      archivePrefix={arXiv},
+      primaryClass={cs.RO},
+      url={https://arxiv.org/abs/2511.21666}, 
 }
 ```
