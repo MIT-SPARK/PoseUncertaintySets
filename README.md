@@ -1,5 +1,5 @@
 # Uncertainty Quantification for Visual Object Pose Estimation
-<h3 align="center"><a href="https://arxiv.org/pdf/2511.21666"> Paper</a> | <a href="TODO">Video</a> | <a href="https://drive.google.com/file/d/1-Hpl3zb1hX3p-uaOD5r-ZhoLCqYKJRII/view?usp=sharing">Data</a></h3>
+<h3 align="center"><a href="https://arxiv.org/pdf/2511.21666"> Paper</a> | <a href="https://youtu.be/2ZUrTQAMcS4?si=k3ShXXovdAJhy9eU">Video</a> | <a href="https://drive.google.com/file/d/1-Hpl3zb1hX3p-uaOD5r-ZhoLCqYKJRII/view?usp=sharing">Data</a></h3>
 
 
   90% confidence | 60% confidence
@@ -15,7 +15,7 @@ The main *theoretical* contribution of the paper is a sum-of-squares approach (i
 First, make sure you have [Julia installed](https://julialang.org/install/). This repository was tested with v1.11.6. Then, clone the repository and follow the directions below. We assume you are in the repo folder.
 1. Clone this repository
 ```shell
-git clone https://github.com/lopenguin/PoseUncertaintySets.git
+git clone https://github.com/MIT-SPARK/PoseUncertaintySets.git
 cd PoseUncertaintySets
 ```
 2. Open the Julia REPL
