@@ -13,6 +13,7 @@ using FileIO, MeshIO
 
 import JSON
 import Images, Plots
+import SparseArrays
 
 # import Plots
 
@@ -33,6 +34,7 @@ include("uncertainty_set.jl")
 export sample_set
 include("uncertainty_bounds.jl")
 export bounding_ellipse, bounding_sphere, bounding_ellipse_quat, bounding_ellipse_separated
+export gaussianjac, so3_log
 include("explicit_bounds.jl")
 export purse_bounds, refine_bbox, project_ellipse
 export grcc_bounds

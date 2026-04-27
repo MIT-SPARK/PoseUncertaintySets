@@ -876,3 +876,54 @@ function bounding_ellipse_quat_center(q_backproj, q_front, q_eqs; order=2, silen
 
     return inv(value.(Hinv)), termination_status(model), value.(center)
 end
+
+
+## Gaussian Baseline
+"""
+    skew(y)
+
+Converts vector `y ∈ R³` to skew symmetric matrix.
+"""
+function skew(y)
+    [0. -y[3] y[2]; y[3] 0. -y[1]; -y[2] y[1] 0]
+end
+
+function so3_log(R)
+    ω, θ = rotm2axang(R)
+    ω*θ
+end
+
+"""
+    gaussianjac(y, r, b, camK, pose)
+
+A Bayesian baseline for uncertainty. Use the Gauss-Newton approximation to a Hessian
+as the information matrix for a Gaussian uncertainty.
+
+To evaluate: `[so3_log(R R₀'); t]' * H * [so3_log(R R₀'); t] ≤ quantile(Chisq(6), 1 - α)`
+
+where `1 - α` is the desired coverage probability.
+"""
+function gaussianjac(y, r, b, camK, pose)
+    # setup
+    N = size(r,1)
+    σ = r
+    R₀, t₀ = pose
+    e3 = [0;0;1]
+    U = Array{Any}(undef, N)
+    for i = 1:N
+        U[i] = (I - y[:,i]*e3')*camK
+    end
+    
+    # define Jacobian
+    J = []
+    for i = 1:N
+        Ji = [-1/σ[i]*U[i]*skew(R₀*b[i])  1/σ[i]*U[i]]
+        push!(J, Ji)
+    end
+    # compute Hessian
+    H = sum([J[i]'*J[i] for i = 1:N])
+end
+
+function gaussianjac(prob, pose; kwargs...)
+    return gaussianjac(prob.y, prob.r, prob.b, prob.camK, pose; kwargs...)
+end

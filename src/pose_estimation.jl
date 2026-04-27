@@ -621,3 +621,79 @@ end
 function conformalpose_local(prob; silent=false)
     return conformalpose_local(prob.y, prob.r, prob.b, prob.camK; p=prob.p, silent=silent)
 end
+
+
+function gaussianjac2(y, r, b, camK, pose)
+    model = Model()
+    @variable(model, R[1:3,1:3])
+    @variable(model, t[1:3])
+    # R ∈ SO(3)
+    @constraint(model, R'*R - I .== 0)
+    @constraint(model, R*R' - I .== 0)
+    @constraint(model, R[1:3,3] .== cross(R[1:3,1],R[1:3,2]))
+    @constraint(model, R[1:3,1] .== cross(R[1:3,2],R[1:3,3]))
+    @constraint(model, R[1:3,2] .== cross(R[1:3,3],R[1:3,1]))
+    # objective
+    σ = r
+    N = size(r,1)
+    e3 = [0;0;1]
+    U = Array{Any}(undef, N)
+    for i = 1:N
+        U[i] = (I - y[:,i]*e3')*camK
+    end
+    @objective(model, Min, sum([(U[i]*R*b[:,i] + U[i]*t)'*(U[i]*R*b[:,i] + U[i]*t)/σ[i]^2 for i = 1:N]))
+
+    x_val = [vec(pose[1]); pose[2]]
+    # Compute Jacobian
+    rows = Any[]
+    nlp = MOI.Nonlinear.Model()
+    for (F, S) in list_of_constraint_types(model)
+        for ci in all_constraints(model, F, S)
+            if !(F <: VariableRef)
+                push!(rows, ci)
+                object = constraint_object(ci)
+                MOI.Nonlinear.add_constraint(nlp, object.func, object.set)
+            end
+        end
+    end
+    MOI.Nonlinear.set_objective(nlp, objective_function(model))
+    x = all_variables(model)
+    backend = MOI.Nonlinear.SparseReverseMode()
+    evaluator = MOI.Nonlinear.Evaluator(nlp, backend, index.(x))
+    # # Initialize the Jacobian
+    # MOI.initialize(evaluator, [:Jac])
+    # # Query the Jacobian structure
+    # sparsity = MOI.jacobian_structure(evaluator)
+    # It, J, V = first.(sparsity), last.(sparsity), zeros(length(sparsity))
+    # # Query the Jacobian values
+    # MOI.eval_constraint_jacobian(evaluator, V, x_val)
+    # jac = SparseArrays.sparse(It, J, V, length(rows), length(x))
+    # hess = Array(jac'*jac)
+
+    function fill_off_diagonal(H)
+        ret = H + H'
+        row_vals = SparseArrays.rowvals(ret)
+        non_zeros = SparseArrays.nonzeros(ret)
+        for col in 1:size(ret, 2)
+            for i in SparseArrays.nzrange(ret, col)
+                if col == row_vals[i]
+                    non_zeros[i] /= 2
+                end
+            end
+        end
+        return ret
+    end
+
+    MOI.initialize(evaluator, [:Hess])
+    hessian_sparsity = MOI.hessian_lagrangian_structure(evaluator)
+    Ih = [i for (i, _) in hessian_sparsity]
+    J = [j for (_, j) in hessian_sparsity]
+    V = zeros(length(hessian_sparsity))
+    MOI.eval_hessian_lagrangian(evaluator, V, x_val, 1.0, zeros(length(rows)))
+    H = SparseArrays.sparse(Ih, J, V, length(x), length(x))
+    return Matrix(fill_off_diagonal(H))
+end
+
+function gaussianjac2(prob, pose; kwargs...)
+    return gaussianjac2(prob.y, prob.r, prob.b, prob.camK, pose; kwargs...)
+end

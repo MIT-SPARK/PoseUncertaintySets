@@ -60,7 +60,7 @@ for i = 1:20:length(surf_t)
     coordsi = [Float32.(surf_R[i])] .* GeometryBasics.coordinates(cad_m) .+ [Float32.(surf_t[i])]
     coordsi = convert(Vector{Point{3, Float32}}, coordsi)
     cadi = GeometryBasics.Mesh(coordsi, cad.faces)
-    mesh!(cadi, color=:green, transparency = true)
+    mesh!(cadi, color=color = RGBAf(0.8, 0.6, 0.1, 0.1), transparency = true)
 end
 scatter!([0],[0],[0],markersize=20)
 f2

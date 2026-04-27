@@ -8,6 +8,7 @@ using LinearAlgebra
 using DataFrames, TexTables
 using Printf
 using JuMP
+using Distributions
 
 using SimpleRotations
 using PoseUncertaintySets
@@ -25,6 +26,7 @@ object_ids = [1,5,6,9,8,11,12] # omit 10 (eggbox)
 
 compute_ellipse1 = true
 compute_ellipse2 = !true
+compute_hessian = !true
 
 posepath = "../data/$dataset/pose_pnp2_$(round(Int,α*100))_$(string(p)).dat"
 ellipsepath1 = "../data/$dataset/ellipse_slem_rotm_o1_$(round(Int,α*100))_$(string(p)).dat"
@@ -49,6 +51,7 @@ for object_id in object_ids
     poses_covered = Dict()
     ellipses_cov1 = Dict()
     ellipses_cov2 = Dict()
+    hessian_cov = Dict()
     for frame in sort(collect(keys(gt)))
         # remove missing keypoints
         if !(object_id in keys(keypoint_data["y"][frame]))
@@ -101,6 +104,17 @@ for object_id in object_ids
         else
             ellipses_cov2[frame] = NaN
         end
+
+        if compute_hessian
+            if !(frame in keys(poses[object_id][1]))
+                continue
+            end
+            R₀ = poses[object_id][1][frame]
+            center = [zeros(3); poses[object_id][2][frame]]
+            H = gaussianjac(prob, [poses[object_id][1][frame], poses[object_id][2][frame]])
+            x = [so3_log(R_gt * R₀'); t_gt]
+            hessian_cov[frame] = (x - center)'*H*(x - center) <= quantile(Chisq(size(H,1)), 1-α)
+        end
     end
 
     frames = collect(keys(keypoints_covered))
@@ -108,7 +122,8 @@ for object_id in object_ids
     cov = DataFrame(dataset=dataset, frame=frames, id=object_id, 
                         keypoint=keypoints_covered.(frames), N=N.(frames), 
                         p=poses_covered.(frames), 
-                        ellipsoid1=ellipses_cov1.(frames), ellipsoid2=ellipses_cov2.(frames))
+                        ellipsoid1=ellipses_cov1.(frames), ellipsoid2=ellipses_cov2.(frames),
+                        hessian=hessian_cov.(frames))
     global coverage = [coverage; cov]
 end
 
@@ -116,9 +131,11 @@ cov_keypoint = sum(coverage[:,"keypoint"]) / sum(coverage[:,"N"])
 cov_p = mean(coverage[:,"p"])
 cov_ellipsoid1 = mean(coverage[:,"ellipsoid1"])
 cov_ellipsoid2 = mean(coverage[:,"ellipsoid2"])
+cov_hessian = mean(coverage[:,"hessian"])
 
 println("Coverage report for $dataset (α=$α)")
 @printf "Keypoint coverage: %.2f%%\n" cov_keypoint*100
 @printf "Pose set coverage: %.2f%%\n" cov_p*100
 @printf "Ellipse1 coverage: %.2f%%\n" cov_ellipsoid1*100
 @printf "Ellipse2 coverage: %.2f%%\n" cov_ellipsoid2*100
+@printf "Hessian coverage: %.2f%%\n"  cov_hessian*100
